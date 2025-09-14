@@ -1,0 +1,27 @@
+[package]
+name = "bandwidth-limiter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.92"
+license = "MIT"
+description = "Explicit per-application TCP shaping and network policy workbench for Windows"
+
+[dependencies]
+chrono = { version = "0.4.45", features = ["serde"] }
+eframe = { version = "=0.33.3", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }
+fs2 = "0.4.3"
+semver = "1.0.28"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.10.9"
+ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_System_Threading", "Win32_Storage_FileSystem"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[profile.release]
+strip = "debuginfo"
+
