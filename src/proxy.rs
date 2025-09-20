@@ -188,7 +188,20 @@ fn serve(
             "Upstream connection failed or proxy loop was refused",
         ));
     };
-    reply(&mut client, 0)?;
+    let bound = upstream.local_addr()?;
+    let mut response = vec![5, 0, 0];
+    match bound.ip() {
+        IpAddr::V4(ip) => {
+            response.push(1);
+            response.extend(ip.octets());
+        }
+        IpAddr::V6(ip) => {
+            response.push(4);
+            response.extend(ip.octets());
+        }
+    }
+    response.extend(bound.port().to_be_bytes());
+    client.write_all(&response)?;
     for stream in [&client, &upstream] {
         stream.set_read_timeout(Some(Duration::from_millis(250)))?;
         stream.set_write_timeout(Some(Duration::from_millis(250)))?;
@@ -417,6 +430,62 @@ fn monotonic_now() -> Duration {
 mod tests {
     use super::*;
     use crate::model::{Config, Rule, Usage};
+    struct Script {
+        input: io::Cursor<Vec<u8>>,
+        output: Vec<u8>,
+    }
+    impl Script {
+        fn new(input: Vec<u8>) -> Self {
+            Self {
+                input: io::Cursor::new(input),
+                output: vec![],
+            }
+        }
+    }
+    impl Read for Script {
+        fn read(&mut self, b: &mut [u8]) -> io::Result<usize> {
+            let count = b.len().min(1);
+            self.input.read(&mut b[..count])
+        }
+    }
+    impl Write for Script {
+        fn write(&mut self, b: &[u8]) -> io::Result<usize> {
+            self.output.extend_from_slice(b);
+            Ok(b.len())
+        }
+        fn flush(&mut self) -> io::Result<()> {
+            Ok(())
+        }
+    }
+    #[test]
+    fn fragmented_socks_requests_parse_without_network_access() {
+        let mut dns = vec![5, 2, 2, 0, 5, 1, 0, 3, 12];
+        dns.extend(b"example.test");
+        dns.extend(443u16.to_be_bytes());
+        let mut script = Script::new(dns);
+        assert_eq!(
+            handshake(&mut script).unwrap(),
+            ("example.test".into(), 443)
+        );
+        assert_eq!(script.output, [5, 0]);
+        let mut ipv6 = vec![5, 1, 0, 5, 1, 0, 4];
+        ipv6.extend(Ipv6Addr::LOCALHOST.octets());
+        ipv6.extend(80u16.to_be_bytes());
+        assert_eq!(
+            handshake(&mut Script::new(ipv6)).unwrap(),
+            ("::1".into(), 80)
+        );
+        assert!(handshake(&mut Script::new(vec![5, 1, 0, 5, 1, 0, 1, 127])).is_err());
+    }
+    #[test]
+    fn unsupported_protocol_and_authentication_are_rejected() {
+        let mut udp = Script::new(vec![5, 1, 0, 5, 3, 0, 1]);
+        assert!(handshake(&mut udp).is_err());
+        assert_eq!(udp.output[3], 7);
+        let mut auth = Script::new(vec![5, 1, 2]);
+        assert!(handshake(&mut auth).is_err());
+        assert_eq!(auth.output, [5, 255]);
+    }
     fn fixture() -> (Arc<Mutex<Engine>>, Arc<Mutex<Status>>) {
         (
             Arc::new(Mutex::new(Engine::new(
@@ -452,6 +521,7 @@ mod tests {
         client
     }
     #[test]
+    #[ignore = "Requires loopback socket permission; unavailable in the unattended sandbox"]
     fn forwards_loopback_payload_and_preserves_half_close() {
         let endpoint = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
         let port = endpoint.local_addr().unwrap().port();
@@ -487,6 +557,7 @@ mod tests {
         );
     }
     #[test]
+    #[ignore = "Requires loopback socket permission; unavailable in the unattended sandbox"]
     fn unknown_identity_is_refused_before_connecting() {
         let (engine, status) = fixture();
         let mut proxy = Server::with_identity(

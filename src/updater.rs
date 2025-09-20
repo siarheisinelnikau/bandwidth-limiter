@@ -263,12 +263,19 @@ pub fn download(
 
 /// Prepare a separate copy of this executable as the updater. Never uses shell scripts.
 pub fn launch_helper(staged: &Path, hash: &str, directory: &Path) -> Result<(), String> {
+    if hash_file(staged)? != hash {
+        return Err("Staged update changed after download".into());
+    }
     let target = std::env::current_exe().map_err(|e| e.to_string())?;
+    let ready = staged.with_extension("helper-ready");
+    if ready.exists() {
+        fs::remove_file(&ready).map_err(|e| e.to_string())?;
+    }
     let helper = directory
         .join("updates")
         .join(format!("updater-{}.exe", std::process::id()));
     fs::copy(&target, &helper).map_err(|e| format!("Cannot prepare update helper: {e}"))?;
-    std::process::Command::new(helper)
+    let mut child = std::process::Command::new(helper)
         .arg("--apply-update")
         .arg(std::process::id().to_string())
         .arg(staged)
@@ -276,7 +283,21 @@ pub fn launch_helper(staged: &Path, hash: &str, directory: &Path) -> Result<(), 
         .arg(hash)
         .spawn()
         .map_err(|e| format!("Cannot start update helper: {e}"))?;
-    Ok(())
+    let deadline = std::time::Instant::now() + Duration::from_secs(5);
+    loop {
+        if ready.is_file() {
+            return Ok(());
+        }
+        if let Some(status) = child.try_wait().map_err(|e| e.to_string())? {
+            return Err(format!(
+                "Update helper exited ({status}); see updates/last-update-error.txt"
+            ));
+        }
+        if std::time::Instant::now() >= deadline {
+            return Err("Update helper did not become ready; application remains running".into());
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
 }
 
 /// Only invoked by the user-initiated updater after download, never during startup checks.
@@ -297,6 +318,10 @@ pub fn apply_update(pid: u32, staged: &Path, target: &Path, expected: &str) -> R
         let process = OpenProcess(PROCESS_SYNCHRONIZE, 0, pid);
         if process.is_null() {
             return Err("Cannot wait for the original application; retry the update".into());
+        }
+        if let Err(error) = fs::write(staged.with_extension("helper-ready"), b"ready") {
+            CloseHandle(process);
+            return Err(format!("Cannot acknowledge update preparation: {error}"));
         }
         let result = WaitForSingleObject(process, 60000);
         CloseHandle(process);
