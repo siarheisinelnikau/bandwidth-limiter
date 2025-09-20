@@ -100,6 +100,10 @@ impl Engine {
 
     /// Reserve before writing: quotas and token budgets are shared by all flows.
     /// `day` is the local calendar date, `now` is monotonic and independent of DST.
+    #[allow(
+        clippy::too_many_arguments,
+        reason = "Keep monotonic and local calendar inputs explicit for deterministic policy testing"
+    )]
     pub fn reserve(
         &mut self,
         path: &str,
@@ -290,5 +294,52 @@ mod tests {
         });
         assert!(c.validate().is_err());
         assert_eq!(app_key(r"\\?\C:\Apps\DOWNLOAD.exe"), app_key(APP));
+    }
+    #[test]
+    fn synthetic_many_flow_budget_and_live_cap_changes() {
+        let mut e = engine();
+        let mut forwarded = 0;
+        for tick in 0..=1000 {
+            for _connection in 0..8 {
+                if let Permit::Bytes(n) = e.reserve(
+                    APP,
+                    Direction::Download,
+                    4096,
+                    Duration::from_millis(tick * 10),
+                    "2026-10-31",
+                    5,
+                    0,
+                ) {
+                    forwarded += n;
+                }
+            }
+        }
+        assert!(forwarded <= 4096 * 10);
+        assert!(forwarded >= 4096 * 9);
+        e.config.rules[0].download_kib = 1;
+        assert_eq!(
+            e.reserve(
+                APP,
+                Direction::Download,
+                4096,
+                Duration::from_secs(10),
+                "2026-10-31",
+                5,
+                0
+            ),
+            Permit::Wait
+        );
+        assert_eq!(
+            e.reserve(
+                APP,
+                Direction::Download,
+                4096,
+                Duration::from_millis(10250),
+                "2026-10-31",
+                5,
+                0
+            ),
+            Permit::Bytes(256)
+        );
     }
 }
