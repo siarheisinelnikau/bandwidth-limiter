@@ -61,7 +61,13 @@ impl Runtime {
         let (tx, events) = mpsc::sync_channel(8);
         let engine = Arc::new(Mutex::new(Engine::new(config, usage)));
         let status = Arc::new(Mutex::new(Status::default()));
-        let view = Arc::new(Mutex::new(View::default()));
+        let view = Arc::new(Mutex::new(View {
+            usage: engine.lock().unwrap().usage.clone(),
+            connection_note:
+                "Not sampled. Refresh reads Windows endpoints; direct-traffic bytes are unknown."
+                    .into(),
+            ..View::default()
+        }));
         let worker_view = view.clone();
         let worker_ctx = ctx.clone();
         let worker_directory = directory.clone();

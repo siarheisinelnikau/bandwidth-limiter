@@ -106,7 +106,8 @@ impl Config {
             let path = app_key(&rule.path);
             let absolute =
                 path.as_bytes().get(1) == Some(&b':') && path.as_bytes().get(2) == Some(&b'\\');
-            if !(absolute || path.starts_with(r"\\"))
+            if path.len() > 32767
+                || !(absolute || path.starts_with(r"\\"))
                 || !path.ends_with(".exe")
                 || path.contains(['\n', '\r', '\0'])
             {

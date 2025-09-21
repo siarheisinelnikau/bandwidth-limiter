@@ -294,6 +294,8 @@ pub fn launch_helper(staged: &Path, hash: &str, directory: &Path) -> Result<(), 
             ));
         }
         if std::time::Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
             return Err("Update helper did not become ready; application remains running".into());
         }
         std::thread::sleep(Duration::from_millis(20));

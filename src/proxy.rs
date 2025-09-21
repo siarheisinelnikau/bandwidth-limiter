@@ -64,6 +64,7 @@ impl Server {
         let stop = Arc::new(AtomicBool::new(false));
         let shutdown = stop.clone();
         status.lock().unwrap().running = true;
+        let spawn_status = status.clone();
         let listener = thread::Builder::new()
             .name("proxy-accept".into())
             .spawn(move || {
@@ -90,7 +91,8 @@ impl Server {
                         status.lock().unwrap().rejected += 1;
                         continue;
                     }
-                    live.fetch_add(1, Ordering::AcqRel);
+                    let count = live.fetch_add(1, Ordering::AcqRel) + 1;
+                    status.lock().unwrap().active = count;
                     let (engine, status, identity, stop, live) = (
                         engine.clone(),
                         status.clone(),
@@ -115,8 +117,10 @@ impl Server {
                         }) {
                         Ok(worker) => workers.push(worker),
                         Err(e) => {
-                            live_on_failure.fetch_sub(1, Ordering::AcqRel);
-                            status_on_failure.lock().unwrap().last_error = e.to_string();
+                            let remaining = live_on_failure.fetch_sub(1, Ordering::AcqRel) - 1;
+                            let mut state = status_on_failure.lock().unwrap();
+                            state.active = remaining;
+                            state.last_error = e.to_string();
                         }
                     }
                 }
@@ -127,7 +131,10 @@ impl Server {
                 state.running = false;
                 state.active = 0;
             })
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| {
+                spawn_status.lock().unwrap().running = false;
+                e.to_string()
+            })?;
         Ok(Self {
             address,
             stop,
@@ -210,7 +217,6 @@ fn serve(
     {
         let mut state = status.lock().unwrap();
         state.accepted += 1;
-        state.active += 1;
     }
     let down_client = client.try_clone()?;
     let down_upstream = upstream.try_clone()?;
