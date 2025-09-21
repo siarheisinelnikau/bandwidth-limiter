@@ -120,7 +120,7 @@ impl App {
                     ui.label(format!("{:.1} KiB/s", rate[1] / 1024.0));
                     ui.label(format!(
                         "{:.2} MiB",
-                        (usage[0] + usage[1]) as f64 / 1048576.0
+                        usage[0].saturating_add(usage[1]) as f64 / 1048576.0
                     ));
                     ui.end_row();
                 }
@@ -502,17 +502,6 @@ impl eframe::App for App {
                 &self.message
             });
         });
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.add_enabled_ui(!self.closing, |ui| {
-                egui::ScrollArea::vertical()
-                    .id_salt("page")
-                    .show(ui, |ui| match self.page {
-                        0 => self.traffic(ui),
-                        1 => self.rules(ui),
-                        _ => self.settings(ui, ctx),
-                    });
-            });
-        });
         if matches!(
             *self.runtime.update_state.lock().unwrap(),
             State::Available(_)
@@ -527,6 +516,23 @@ impl eframe::App for App {
                 });
             });
         }
+        egui::CentralPanel::default().show(ctx, |ui| {
+            if self.dirty {
+                ui.colored_label(
+                    Color32::YELLOW,
+                    "Unsaved changes — the saved policy remains active.",
+                );
+            }
+            ui.add_enabled_ui(!self.closing, |ui| {
+                egui::ScrollArea::vertical()
+                    .id_salt("page")
+                    .show(ui, |ui| match self.page {
+                        0 => self.traffic(ui),
+                        1 => self.rules(ui),
+                        _ => self.settings(ui, ctx),
+                    });
+            });
+        });
     }
 }
 
