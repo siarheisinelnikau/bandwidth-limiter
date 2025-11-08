@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="Current" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{B1070040-752D-4AE7-B35F-91832C650711}</ProjectGuid>
+    <RootNamespace>BandwidthLimiterWfp</RootNamespace>
+    <WindowsTargetPlatformVersion Condition="'$(WindowsTargetPlatformVersion)'==''">10.0.26100.0</WindowsTargetPlatformVersion>
+    <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Driver</ConfigurationType><DriverType>WDM</DriverType>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <TargetVersion>Windows10</TargetVersion><DriverTargetPlatform>Desktop</DriverTargetPlatform>
+    <UseDebugLibraries Condition="'$(Configuration)'=='Debug'">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="'$(Configuration)'!='Debug'">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)..\..\target\wfp-driver\$(Configuration)\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)..\..\target\wfp-driver\obj\$(Configuration)\</IntDir>
+    <TargetName>BandwidthLimiterWfp</TargetName>
+    <SignMode>Off</SignMode><EnableInf2cat>false</EnableInf2cat>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError>
+      <PreprocessorDefinitions>_WIN32_WINNT=0x0A00;NTDDI_VERSION=0x0A000008;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <CompileAs>CompileAsC</CompileAs><SpectreMitigation>Spectre</SpectreMitigation>
+    </ClCompile>
+    <Link><AdditionalDependencies>Fwpkclnt.lib;Wdmsec.lib;Ndis.lib;%(AdditionalDependencies)</AdditionalDependencies></Link>
+  </ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="driver.c" /></ItemGroup>
+  <ItemGroup><ClInclude Include="..\shared\protocol.h" /><ClInclude Include="..\shared\budget.h" /></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+</Project>
