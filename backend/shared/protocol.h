@@ -14,6 +14,7 @@
 #define BL_STATE_DRAINING 1u
 #define BL_STATE_ARMED 2u
 #define BL_STATE_QUIESCED 3u
+#define BL_STATE_QUIESCING 4u
 #define BL_TICKS_PER_SECOND 10000000ull
 #define BL_MAX_RATE (1024ull * 1024ull * 1024ull)
 

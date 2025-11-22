@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "rules": [
+    { "executable": "C:\\Lab\\DownloadFixture.exe", "download_kib": 256 }
+  ]
+}

@@ -192,7 +192,8 @@ static NTSTATUS BlClearFlows(VOID) {
     batch = ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(*batch) * BL_MAX_FLOWS, BL_TAG);
     if (batch == NULL) return STATUS_INSUFFICIENT_RESOURCES;
     KeAcquireSpinLock(&gLock, &irql);
-    if ((gStatus.state != BL_STATE_DRAINING && gStatus.state != 4) || gStatus.filters || gStatus.pending || gStatus.continuations) {
+    if ((gStatus.state != BL_STATE_DRAINING && gStatus.state != BL_STATE_QUIESCING &&
+        gStatus.state != BL_STATE_QUIESCED) || gStatus.filters || gStatus.pending || gStatus.continuations) {
         KeReleaseSpinLock(&gLock, irql); ExFreePoolWithTag(batch, BL_TAG); return STATUS_DEVICE_BUSY;
     }
     for (item = gFlows.Flink; item != &gFlows; item = item->Flink) {
@@ -226,7 +227,7 @@ static NTSTATUS BlControlRequest(PDEVICE_OBJECT device, IRP *irp) {
     if (code == BL_QUIESCE) {
         status = BlClearFlows();
         if (!NT_SUCCESS(status)) return BlComplete(irp, status, 0);
-        KeAcquireSpinLock(&gLock, &irql); gStatus.state = 4; /* terminal quiescing; configuration stays disabled */
+        KeAcquireSpinLock(&gLock, &irql); gStatus.state = BL_STATE_QUIESCING;
         KeReleaseSpinLock(&gLock, irql);
         for (i = 0; i < 4; ++i) if (gIds[i]) {
             status = FwpsCalloutUnregisterById0(gIds[i]);
