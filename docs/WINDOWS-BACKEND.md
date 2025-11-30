@@ -1,4 +1,4 @@
-# Windows networking boundaries and the deferred backend
+# Windows networking boundaries and the experimental backend
 
 ## What is real in this repository
 
@@ -16,20 +16,18 @@ qWAVE exposes outgoing-rate operations on application-managed flows. That is not
 
 For a transparent backend, our engineering conclusion is that a privileged broker and a signed WFP callout driver (or a separately reviewed equivalent packet interception component) are needed. Stream inspection supports deferral/injection, while packet and datagram processing have separate ownership and completion requirements. See [stream inspection](https://learn.microsoft.com/en-us/windows-hardware/drivers/network/stream-inspection) and [callout processing](https://learn.microsoft.com/en-us/windows-hardware/drivers/network/using-a-callout-for-deep-inspection). Even a driver cannot prevent packets from physically arriving from the network; inbound delivery shaping relies on buffering/backpressure or packet-level strategies.
 
-## Separate component: not implemented or shipped
+## Separate component: experimental source now included
 
-**No transparent WFP service/driver source, `.sys`, INF, installer, signing certificate, filter GUID, or service registration is included in 0.1.0.** This is a remaining requested capability, not a completed backend or a hidden switch. A kernel stub that always permits traffic would not satisfy it. The UI's system-wide enforcement status stays **UNAVAILABLE**.
+The repository now includes [a C WFP callout driver and Rust SCM broker](../backend/README.md). The driver source associates selected executable TCP flows at ALE, shares a receive budget across their streams and uses actual DEFER/Continue pacing. Outgoing TCP is permitted; upload and UDP shaping are not implemented. Strict service policies refuse unsupported fields. It is not a permit-only demonstration or a firewall blocking substitute.
 
-The available toolchain built the user-mode Rust source. WDK builds, driver signing, registration and hardware tests were outside this unattended session. There is therefore no valid driver build/install command for this repository yet. Do not run generic `sc create`, INF, test-signing, firewall or QoS commands against it.
+The Rust service builds and its fixtures pass. No `.sys` was produced because `km/fwpsk.h`/WDK are absent; no kernel behavior has been verified. No driver/service is installed. The portable GUI does not talk to the broker, so its system-wide status remains **UNAVAILABLE**. [Concrete build and manual VM installation/removal instructions](WFP-SETUP.md) are tied to the included WDK project; [lifecycle and review notes](WFP-DESIGN.md) explain lease expiry, static WFP objects, guarded drain and explicit quiesce.
 
-A future separately reviewed component needs the following concrete work before providing an installer:
+A production backend still needs the following work:
 
-1. A broker service authenticating the interactive user's control connection, validating bounded policy generations and authorizing executable identities. User-writable policy files must not become an arbitrary privileged command channel.
-2. WDK x64 driver projects, a restrictive device ACL, stable versioned IOCTL messages, ALE app/flow attribution for IPv4/IPv6 and TCP/UDP, and one shared application budget across flows.
-3. Correct stream deferral/continuation or bounded packet clone/reinjection queues; never sleep in `classifyFn`. Handle DPC/IRQL constraints, injection loops, flow teardown, FIN/RST, cancellation and driver unload while I/O is outstanding. Blocking or dropping as a substitute for pacing is insufficient.
-4. Queue byte/time limits, fair scheduling, monotonic token accounting, call-mode updates, quota semantics and explicit accounting scope for payload versus wire bytes.
-5. A disposable Windows VM with matching SDK/WDK, the driver's documented build project and test signing confined to that VM. Build and signing instructions must be tied to those actual projects and artifacts, which do not exist yet.
-6. Driver Verifier and flow-lifetime tests, IPv4/IPv6, UDP, large transfers, TCP retransmission, VPNs, suspend/resume, Wi-Fi changes and service crash/unload behavior. Review coexistence with existing security products.
-7. A signed production package with an explicit user-authorized installer/uninstaller. Keep all provider/filter/service registrations owned and reversible; fail safely when the broker or driver is missing. Installation steps will be documented with that real package.
+1. A successful WDK build and code analysis, followed by Driver Verifier and lifecycle tests in an isolated VM. Deferral, concurrent deletion, transaction rollback, BFE restart, memory pressure and partial unregister failures remain unverified kernel paths.
+2. Authenticated GUI-to-broker IPC and live policy generations. The current broker deliberately exposes no user control endpoint and reads an administrator-owned static policy.
+3. Separate outbound and UDP designs. Receive-only DEFER must never be used for send data or presented as bidirectional shaping.
+4. Driver-backed Call mode, quotas, schedules, persistence and appropriate telemetry, with honest payload/wire accounting and coexistence behavior.
+5. A reviewed signed production package and explicit installer/uninstaller. The manual VM staging instructions are not a production installer, and portable GUI self-updates do not update kernel components.
 
 No service or driver should be installed merely to test the currently available explicit proxy.

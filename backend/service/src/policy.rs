@@ -29,6 +29,7 @@ impl Policy {
             let key = rule.executable.to_lowercase();
             if key.len() > 32767
                 || key.contains(['\0', '\r', '\n'])
+                || key.chars().skip(2).any(|c| c == ':')
                 || !key.ends_with(".exe")
                 || !Path::new(&rule.executable).is_absolute()
                 || key.starts_with(r"\\")
@@ -71,6 +72,7 @@ mod tests {
     }
     #[test]
     fn duplicate_and_relative_targets_are_rejected() {
+        assert!(Policy::parse(br#"{"version":1,"rules":[{"executable":"C:\\Fixture.exe:stream.exe","download_kib":1}]}"#).is_err());
         assert!(
             Policy::parse(
                 br#"{"version":1,"rules":[{"executable":"Fixture.exe","download_kib":1}]}"#

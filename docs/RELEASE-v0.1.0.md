@@ -14,7 +14,7 @@ First implementation of an original Windows bandwidth-policy utility. This relea
 
 ## Known limitations and validation
 
-Enforcement requires the client application to use SOCKS5. Transparent system-wide shaping, a privileged service/WFP driver, UDP relay, QUIC, tray support and historical traffic reports are not implemented. Download limits pace delivery/backpressure and do not strictly cap network-adapter arrival. A forced exit may lose up to the last usage checkpoint interval; quotas are not tamper-resistant. A stalled OS DNS resolver can delay shutdown.
+Desktop enforcement requires the client application to use SOCKS5. Separate experimental incoming-TCP WFP driver and broker sources have been added, but the driver is uncompiled/unvalidated and not integrated into the GUI. WFP upload/UDP, driver-backed quotas/schedules/Call mode, UDP relay, QUIC, tray support and historical traffic reports remain absent. Download limits pace delivery/backpressure and do not strictly cap network-adapter arrival. A forced exit may lose up to the last usage checkpoint interval; quotas are not tamper-resistant. A stalled OS DNS resolver can delay shutdown.
 
 The unattended build session did not launch the GUI, operate real applications, install drivers/services, alter networking, or execute the updater. Loopback integration tests were attempted but blocked by sandbox Winsock error 10013. Main-window/settings screenshots, live Windows identity and shaping, graphics/idle behavior, and update replacement remain pending. See `docs/VERIFICATION.md` for the exact local checks.
 

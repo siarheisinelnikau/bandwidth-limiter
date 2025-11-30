@@ -21,6 +21,13 @@ jobs:
       - name: Build standalone executable and checksum
         shell: pwsh
         run: ./scripts/package.ps1 -Offline
+      - name: Resolve experimental service dependencies
+        run: cargo fetch --locked --manifest-path backend/service/Cargo.toml
+      - name: Check and build experimental user-mode broker only
+        shell: pwsh
+        run: |
+          ./scripts/check-wfp.ps1
+          ./scripts/build-wfp.ps1 -Offline
       - uses: actions/upload-artifact@v4
         with:
           name: BandwidthLimiter-windows-x64

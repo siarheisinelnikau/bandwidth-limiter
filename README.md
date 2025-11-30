@@ -2,7 +2,7 @@
 
 A Windows x64 desktop utility for explicit, per-application TCP bandwidth policies and call-friendly presets. Version 0.1.0 is an early implementation with a real SOCKS5 relay and a testable policy engine. It is independent of, and not affiliated with, NetLimiter. The implementation and interface are original.
 
-**Scope:** enforcement applies only to TCP connections an application sends through this application's loopback SOCKS5 proxy. Transparent system-wide shaping and a WFP driver/service are **not available**. The UI displays this limitation. Applications must support SOCKS5 themselves; the utility does not change Windows proxy, firewall, or QoS settings.
+**Desktop scope:** enforcement in the portable GUI applies only to TCP connections an application sends through its loopback SOCKS5 proxy. Applications must support SOCKS5 themselves; the GUI does not change Windows proxy, firewall, or QoS settings. Separate [experimental WFP driver/service sources](backend/README.md) now implement an incoming-TCP shaping path without SOCKS. The broker builds, but the driver is uncompiled/unvalidated, not installed, and not connected to the GUI. The desktop's system-wide enforcement status remains **UNAVAILABLE**.
 
 ## Capabilities
 
@@ -15,6 +15,7 @@ A Windows x64 desktop utility for explicit, per-application TCP bandwidth polici
 | Weekly schedules | Selected weekdays, local times, overnight windows and all-day windows | Base caps become unlimited outside the window; call caps and quotas remain active |
 | Activity | Successfully forwarded proxy payload bytes and sampled rates; daily reserved bytes | No fabricated rates for direct traffic |
 | Windows inventory | Read-only IPv4/IPv6 TCP/UDP endpoints, PID, process path, state | No global per-process byte counters; unavailable identity is shown explicitly |
+| Experimental WFP sources | Separate Rust SCM broker and C callout driver for executable-specific incoming TCP deferral/continuation | WDK build and VM validation pending; no GUI controls, upload, UDP, quotas or schedules in this backend |
 | Updates | Background startup check with saved opt-out; manual check; download progress; SHA-256 verification; restart/replacement helper | Repository/release may be unpublished; replacement and live network behavior require manual validation |
 
 ## Build and package
@@ -54,6 +55,8 @@ The planned canonical repository is [siarheisinelnikau/bandwidth-limiter](https:
 ## Verification and screenshots
 
 See [verification status](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [Windows API constraints](docs/WINDOWS-BACKEND.md), and [draft release notes](docs/RELEASE-v0.1.0.md).
+
+For the new backend see [WFP source status](backend/README.md), [design/lifecycle review](docs/WFP-DESIGN.md), and [manual VM build/install/removal instructions](docs/WFP-SETUP.md). `scripts/build-wfp.ps1` only builds; it does not install or launch anything. Driver/service updates are separate from portable GUI updates.
 
 **Real main-window and settings screenshots are pending.** The unattended session explicitly forbids launching GUI applications or capturing screenshots. No mock screenshots or broken image links are included. Window layout, DPI, graphics, idle CPU, real application identity, real transfers, and update replacement remain subject to manual validation.
 
