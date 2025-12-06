@@ -20,7 +20,7 @@ use std::{
 const MAX_FLOWS: usize = 32;
 type Identity = dyn Fn(SocketAddr, SocketAddr) -> Result<String, String> + Send + Sync;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Status {
     pub running: bool,
     pub active: usize,

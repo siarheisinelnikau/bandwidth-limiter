@@ -193,6 +193,7 @@ pub fn download(
     release: &Release,
     directory: &Path,
     state: &Arc<Mutex<State>>,
+    notify: impl Fn(),
 ) -> Result<(PathBuf, String), String> {
     let expected = match &release.digest {
         Some(digest) => digest.to_lowercase(),
@@ -222,6 +223,7 @@ pub fn download(
         let mut file = File::create(&partial).map_err(|e| e.to_string())?;
         let mut buffer = [0u8; 65536];
         let mut total = 0;
+        let mut last_notice = std::time::Instant::now();
         loop {
             let count = reader.read(&mut buffer).map_err(|e| e.to_string())?;
             if count == 0 {
@@ -237,6 +239,10 @@ pub fn download(
                 received: total,
                 total: release.size,
             };
+            if last_notice.elapsed() >= Duration::from_millis(200) {
+                notify();
+                last_notice = std::time::Instant::now();
+            }
         }
         file.sync_all().map_err(|e| e.to_string())?;
         drop(file);

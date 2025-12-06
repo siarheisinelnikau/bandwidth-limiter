@@ -6,7 +6,6 @@ use bandwidth_limiter::{
     storage,
     updater::{self, State},
 };
-use eframe::egui;
 use std::{
     collections::BTreeMap,
     path::PathBuf,
@@ -32,7 +31,7 @@ pub enum Event {
     Saved(String),
     Closed,
 }
-#[derive(Clone, Default)]
+#[derive(Clone, Default, PartialEq)]
 pub struct View {
     pub status: Status,
     pub usage: Usage,
@@ -56,6 +55,20 @@ pub struct Runtime {
 }
 
 impl Runtime {
+    /// No workers, I/O, device access or update checks in the headless fixture path.
+    pub fn preview() -> Self {
+        let (commands, _) = mpsc::sync_channel(1);
+        let (_, events) = mpsc::sync_channel(1);
+        let (update_commands, _) = mpsc::sync_channel(1);
+        Self {
+            commands,
+            events,
+            view: Arc::new(Mutex::new(View::default())),
+            update_commands,
+            update_state: Arc::new(Mutex::new(State::Idle)),
+            update_exit: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        }
+    }
     pub fn new(config: Config, usage: Usage, directory: PathBuf, ctx: egui::Context) -> Self {
         let (commands, rx) = mpsc::sync_channel(8);
         let (tx, events) = mpsc::sync_channel(8);
@@ -80,10 +93,12 @@ impl Runtime {
             let mut last_usage = String::new();
             let mut connections = vec![]; let mut connection_note = "Not sampled. Refresh reads Windows TCP/UDP endpoints; byte counters are unavailable for direct traffic.".to_string();
             loop {
-                let timeout = if proxy.is_some() || monitor { Duration::from_secs(1) } else { Duration::from_secs(60) };
-                let command = rx.recv_timeout(timeout);
+                let active = proxy.is_some() || monitor;
+                let command = if active { rx.recv_timeout(Duration::from_secs(1)) }
+                    else { rx.recv().map_err(|_| mpsc::RecvTimeoutError::Disconnected) };
                 let mut refresh = false;
                 let mut closing = false;
+                let timed_out = matches!(&command, Err(mpsc::RecvTimeoutError::Timeout));
                 match command {
                     Ok(Command::Save(config)) => {
                         let result = config.validate().and_then(|()| storage::write_json(&worker_directory.join("settings.json"), &config));
@@ -115,7 +130,7 @@ impl Runtime {
                     }
                 }
                 let usage = engine.lock().unwrap().usage.clone();
-                if closing || last_save.elapsed() >= Duration::from_secs(5) {
+                if closing || proxy.is_none() || last_save.elapsed() >= Duration::from_secs(5) {
                     let serialized = serde_json::to_string(&usage).unwrap_or_default();
                     if serialized != last_usage {
                         match storage::write_json(&worker_directory.join("usage.json"), &usage) {
@@ -133,8 +148,10 @@ impl Runtime {
                         (values[1].saturating_sub(old[1])) as f64 / elapsed])
                 }).collect();
                 previous = current.forwarded.clone(); previous_time = Instant::now();
-                *worker_view.lock().unwrap() = View { status: current, usage, rates, connections: connections.clone(), connection_note: connection_note.clone() };
-                worker_ctx.request_repaint();
+                let next = View { status: current, usage, rates, connections: connections.clone(), connection_note: connection_note.clone() };
+                let changed = { let mut shared = worker_view.lock().unwrap();
+                    let changed = *shared != next; if changed { *shared = next; } changed };
+                if changed || !timed_out { worker_ctx.request_repaint(); }
                 if closing { let _ = tx.send(Event::Closed); worker_ctx.request_repaint(); break; }
             }
         }).expect("Cannot create policy worker");
@@ -166,7 +183,9 @@ impl Runtime {
                             };
                             ctx.request_repaint();
                             let result =
-                                match updater::download(&release, &directory, &shared_state) {
+                                match updater::download(&release, &directory, &shared_state, || {
+                                    ctx.request_repaint()
+                                }) {
                                     Ok((staged, hash)) => State::Ready { staged, hash },
                                     Err(e) => State::Error(e),
                                 };

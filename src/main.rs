@@ -1,13 +1,24 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod design;
+mod paint;
+mod preview;
 mod runtime;
+mod scheduling;
+mod tray;
 mod ui;
 mod window;
 
 use bandwidth_limiter::{storage, updater};
-use eframe::egui;
 
-fn main() -> eframe::Result {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<_> = std::env::args_os().collect();
+    if args.get(1).is_some_and(|a| a == "--render-preview") {
+        if args.len() != 3 {
+            return Err("Usage: --render-preview ABSOLUTE_OUTPUT_DIRECTORY".into());
+        }
+        preview::render(std::path::Path::new(&args[2]))?;
+        return Ok(());
+    }
     if args.get(1).is_some_and(|a| a == "--apply-update") {
         let result = (|| {
             if args.len() != 6 {
@@ -35,38 +46,5 @@ fn main() -> eframe::Result {
     let directory = storage::data_directory();
     let bootstrap = storage::lock(&directory)
         .and_then(|guard| storage::load(&directory).map(|(config, usage)| (guard, config, usage)));
-    let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1120.0, 760.0])
-            .with_min_inner_size([900.0, 620.0]),
-        renderer: eframe::Renderer::Glow,
-        ..Default::default()
-    };
-    window::run(
-        "BandwidthLimiter",
-        options,
-        Box::new(move |cc| {
-            cc.egui_ctx.set_visuals(egui::Visuals::dark());
-            match bootstrap {
-                Ok((guard, config, usage)) => Ok(Box::new(ui::App::new(
-                    config,
-                    usage,
-                    directory,
-                    guard,
-                    cc.egui_ctx.clone(),
-                ))),
-                Err(message) => Ok(Box::new(StartupError(message))),
-            }
-        }),
-    )
-}
-
-struct StartupError(String);
-impl eframe::App for StartupError {
-    fn update(&mut self, ctx: &egui::Context, _: &mut eframe::Frame) {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("BandwidthLimiter could not start"); ui.label(&self.0);
-            ui.label("Existing settings were preserved. Close another instance or inspect the files in LocalAppData/BandwidthLimiter.");
-        });
-    }
+    window::run(bootstrap, directory)
 }

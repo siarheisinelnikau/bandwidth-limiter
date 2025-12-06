@@ -132,7 +132,7 @@ pub enum Direction {
     Upload = 1,
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Usage {
     pub day: String,
     pub apps: std::collections::BTreeMap<String, [u64; 2]>,

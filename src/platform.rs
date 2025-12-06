@@ -1,7 +1,7 @@
 //! Read-only Windows IP Helper integration. Never enables ETW/EStats, filters or QoS.
 use std::net::SocketAddr;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Connection {
     pub pid: u32,
     pub path: Option<String>,
