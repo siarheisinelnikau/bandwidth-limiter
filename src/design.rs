@@ -18,8 +18,12 @@ pub fn apply(ctx: &egui::Context) {
     style.visuals.selection.stroke = Stroke::new(1.0, ACCENT);
     style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, MUTED);
     style.visuals.widgets.inactive.bg_fill = SURFACE;
+    style.visuals.widgets.inactive.weak_bg_fill = SURFACE;
+    style.visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(78, 102, 122));
     style.visuals.widgets.hovered.bg_fill = Color32::from_rgb(40, 58, 70);
+    style.visuals.widgets.hovered.weak_bg_fill = style.visuals.widgets.hovered.bg_fill;
     style.visuals.widgets.active.bg_fill = Color32::from_rgb(35, 89, 82);
+    style.visuals.widgets.active.weak_bg_fill = style.visuals.widgets.active.bg_fill;
     style.visuals.warn_fg_color = WARNING;
     style.visuals.error_fg_color = ERROR;
     style.spacing.item_spacing = egui::vec2(12.0, 10.0);

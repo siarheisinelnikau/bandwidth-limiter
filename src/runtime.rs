@@ -48,7 +48,7 @@ pub enum UpdateCommand {
 pub struct Runtime {
     pub commands: SyncSender<Command>,
     pub events: Receiver<Event>,
-    pub view: Arc<Mutex<View>>,
+    pub view: Arc<Mutex<Arc<View>>>,
     pub update_commands: SyncSender<UpdateCommand>,
     pub update_state: Arc<Mutex<State>>,
     pub update_exit: Arc<std::sync::atomic::AtomicBool>,
@@ -63,7 +63,7 @@ impl Runtime {
         Self {
             commands,
             events,
-            view: Arc::new(Mutex::new(View::default())),
+            view: Arc::new(Mutex::new(Arc::new(View::default()))),
             update_commands,
             update_state: Arc::new(Mutex::new(State::Idle)),
             update_exit: Arc::new(std::sync::atomic::AtomicBool::new(false)),
@@ -74,13 +74,13 @@ impl Runtime {
         let (tx, events) = mpsc::sync_channel(8);
         let engine = Arc::new(Mutex::new(Engine::new(config, usage)));
         let status = Arc::new(Mutex::new(Status::default()));
-        let view = Arc::new(Mutex::new(View {
+        let view = Arc::new(Mutex::new(Arc::new(View {
             usage: engine.lock().unwrap().usage.clone(),
             connection_note:
                 "Not sampled. Refresh reads Windows endpoints; direct-traffic bytes are unknown."
                     .into(),
             ..View::default()
-        }));
+        })));
         let worker_view = view.clone();
         let worker_ctx = ctx.clone();
         let worker_directory = directory.clone();
@@ -150,7 +150,7 @@ impl Runtime {
                 previous = current.forwarded.clone(); previous_time = Instant::now();
                 let next = View { status: current, usage, rates, connections: connections.clone(), connection_note: connection_note.clone() };
                 let changed = { let mut shared = worker_view.lock().unwrap();
-                    let changed = *shared != next; if changed { *shared = next; } changed };
+                    let changed = shared.as_ref() != &next; if changed { *shared = Arc::new(next); } changed };
                 if changed || !timed_out { worker_ctx.request_repaint(); }
                 if closing { let _ = tx.send(Event::Closed); worker_ctx.request_repaint(); break; }
             }

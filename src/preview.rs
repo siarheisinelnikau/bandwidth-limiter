@@ -43,6 +43,7 @@ fn fixture(empty: bool) -> (Config, View) {
         ..Config::default()
     };
     let mut view = View::default();
+    view.status.running = !empty;
     view.usage.day = "2026-10-31".into();
     for (index, rule) in config.rules.iter().enumerate() {
         view.rates

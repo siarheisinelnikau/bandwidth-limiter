@@ -7,7 +7,11 @@ use bandwidth_limiter::{
     updater::State,
 };
 use egui::{self, RichText};
-use std::{fs::File, path::PathBuf, sync::atomic::Ordering};
+use std::{
+    fs::File,
+    path::PathBuf,
+    sync::{Arc, atomic::Ordering},
+};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Page {
@@ -18,7 +22,7 @@ pub enum Page {
 pub struct App {
     config: Config,
     runtime: Runtime,
-    view: View,
+    view: Arc<View>,
     pub page: Page,
     selected: usize,
     message: String,
@@ -58,7 +62,7 @@ impl App {
         Self {
             config,
             runtime,
-            view: View::default(),
+            view: Arc::new(View::default()),
             page: Page::Applications,
             selected: 0,
             message: String::new(),
@@ -82,7 +86,7 @@ impl App {
             None,
             true,
         );
-        app.view = view;
+        app.view = Arc::new(view);
         app.page = page;
         if error {
             app.message = "Settings could not be saved: the data directory is read-only. Your edits are still here.".into();
@@ -274,16 +278,28 @@ impl App {
     }
     fn applications(&mut self, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            design::section(ui, "Keep bandwidth for what matters");
+            design::section(ui, "Application limits");
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui
                     .add_enabled(
                         self.running()
                             || (self.config.rules.iter().any(|r| r.enabled) && !self.dirty),
-                        egui::Button::new(if self.running() {
-                            "Pause limiter"
+                        egui::Button::new(
+                            RichText::new(if self.running() {
+                                "Pause limiter"
+                            } else {
+                                "Start limiter"
+                            })
+                            .color(if self.running() {
+                                design::TEXT
+                            } else {
+                                design::BACKGROUND
+                            }),
+                        )
+                        .fill(if self.running() {
+                            design::SURFACE
                         } else {
-                            "Start limiter"
+                            ACCENT
                         }),
                     )
                     .clicked()
@@ -326,8 +342,9 @@ impl App {
         }
         let width = ui.available_width();
         ui.horizontal_top(|ui| {
-            ui.allocate_ui(
+            ui.allocate_ui_with_layout(
                 egui::vec2((width * 0.38).max(270.0), ui.available_height()),
+                egui::Layout::top_down(egui::Align::Min),
                 |ui| {
                     ui.horizontal(|ui| {
                         design::section(ui, "Applications");
@@ -337,6 +354,9 @@ impl App {
                     });
                     egui::ScrollArea::vertical()
                         .id_salt("app-list")
+                        .scroll_bar_visibility(
+                            egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+                        )
                         .show(ui, |ui| {
                             for (index, rule) in self.config.rules.iter().enumerate() {
                                 let rates = self
@@ -374,11 +394,15 @@ impl App {
                 },
             );
             ui.separator();
-            ui.allocate_ui(
+            ui.allocate_ui_with_layout(
                 egui::vec2(ui.available_width(), ui.available_height()),
+                egui::Layout::top_down(egui::Align::Min),
                 |ui| {
                     egui::ScrollArea::vertical()
                         .id_salt("editor")
+                        .scroll_bar_visibility(
+                            egui::scroll_area::ScrollBarVisibility::AlwaysVisible,
+                        )
                         .show(ui, |ui| self.editor(ui));
                 },
             );
@@ -417,6 +441,21 @@ impl App {
                 ui.label("Upload limit");
                 changed |= cap(ui, &mut rule.upload_kib);
                 ui.end_row();
+            });
+        design::note(ui, "0 KiB/s means unlimited.");
+        changed |= ui
+            .checkbox(&mut rule.call_background, "Background during calls")
+            .changed();
+        let summary = format!(
+            "Quota & schedule · {}",
+            if rule.daily_quota_mib == 0 {
+                "no quota".into()
+            } else {
+                format!("{} MiB daily", rule.daily_quota_mib)
+            }
+        );
+        ui.collapsing(summary, |ui| {
+            ui.horizontal(|ui| {
                 ui.label("Daily quota");
                 changed |= ui
                     .add(
@@ -425,15 +464,11 @@ impl App {
                             .suffix(" MiB"),
                     )
                     .changed();
-                ui.end_row();
             });
         design::note(
             ui,
             "0 = unlimited. The daily quota includes downloads and uploads.",
         );
-        changed |= ui
-            .checkbox(&mut rule.call_background, "Background during calls")
-            .changed();
         let mut scheduled = rule.schedule.is_some();
         if ui
             .checkbox(&mut scheduled, "Use a weekly schedule")
@@ -476,6 +511,7 @@ impl App {
             );
             ui.collapsing("Overnight and all-day schedules", |ui| { ui.label("Select the starting day for an overnight window. Equal start and end times mean all day. End times are exclusive."); });
         }
+        });
         ui.add_space(6.0);
         let usage = self
             .view
@@ -495,9 +531,6 @@ impl App {
         self.dirty |= changed;
         ui.add_space(6.0);
         ui.horizontal(|ui| {
-            if ui.button("Save changes").clicked() {
-                self.save();
-            }
             if ui
                 .button(RichText::new("Remove rule").color(ERROR))
                 .clicked()
@@ -608,7 +641,6 @@ impl App {
             });
             ui.collapsing("System-wide WFP backend · experimental", |ui| { ui.label("Driver and broker sources are included separately. The driver still needs a WDK build, signing and VM validation. This window does not control it."); ui.label("The experimental driver is incoming TCP only. Its service policy does not support upload, UDP, quotas, schedules or Call mode."); });
             ui.collapsing("About and limitations", |ui| { ui.label("CPU-rendered interface · MIT license"); ui.label("Proxy rates measure forwarded TCP payloads. Incoming network buffers may still receive bursts. Quotas are checkpointed, so forced exit can lose recent usage."); ui.hyperlink_to("Project repository", "https://github.com/siarheisinelnikau/bandwidth-limiter"); });
-            if self.dirty && ui.button("Save settings").clicked() { self.save(); }
         });
     }
 }
