@@ -26,6 +26,7 @@ pub enum Wake {
 pub fn run(
     bootstrap: Result<(File, Config, Usage), String>,
     directory: PathBuf,
+    diagnostics: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let events = EventLoop::<Wake>::with_user_event().build()?;
     events.set_control_flow(ControlFlow::Wait);
@@ -46,6 +47,16 @@ pub fn run(
         shown: false,
         layout_count: 0,
         present_count: 0,
+        instance: None,
+        diagnostics,
+        segments: vec![],
+        segment_start: Instant::now(),
+        segment_layout: 0,
+        segment_present: 0,
+        layout_ns: 0,
+        raster_ns: 0,
+        present_ns: 0,
+        hidden_redraws: 0,
     };
     events.run_app(&mut host)?;
     Ok(())
@@ -67,8 +78,34 @@ struct Host {
     shown: bool,
     layout_count: u64,
     present_count: u64,
+    instance: Option<crate::instance::Instance>,
+    diagnostics: Option<PathBuf>,
+    segments: Vec<serde_json::Value>,
+    segment_start: Instant,
+    segment_layout: u64,
+    segment_present: u64,
+    layout_ns: u128,
+    raster_ns: u128,
+    present_ns: u128,
+    hidden_redraws: u64,
 }
 impl Host {
+    fn record_segment(&mut self) {
+        if self.diagnostics.is_some() && self.segments.len() < 64 {
+            self.segments.push(serde_json::json!({ "visible": self.scheduling.visible,
+                "duration_ms": self.segment_start.elapsed().as_millis(), "layouts": self.layout_count - self.segment_layout,
+                "presents": self.present_count - self.segment_present }));
+        }
+        self.segment_start = Instant::now();
+        self.segment_layout = self.layout_count;
+        self.segment_present = self.present_count;
+    }
+    fn visibility(&mut self, visible: bool) {
+        if visible != self.scheduling.visible {
+            self.record_segment();
+        }
+        self.scheduling.visibility(visible);
+    }
     fn poll(&mut self, e: &ActiveEventLoop) {
         if let Some(app) = &mut self.app {
             app.poll();
@@ -86,13 +123,16 @@ impl Host {
             window.set_minimized(false);
             window.focus_window();
             self.minimized = false;
-            self.scheduling.visibility(true);
+            self.visibility(true);
+        }
+        if let Some(window) = &self.window {
             window.request_redraw();
         }
     }
     fn paint(&mut self, e: &ActiveEventLoop) -> Result<(), Box<dyn std::error::Error>> {
         self.poll(e);
         if !self.scheduling.visible || self.minimized {
+            self.hidden_redraws += 1;
             return Ok(());
         }
         let Some(window) = &self.window else {
@@ -107,18 +147,23 @@ impl Host {
             || self.painter.pixels.len() != size.width as usize * size.height as usize
         {
             self.scheduling.dirty = false;
+            let layout_start = Instant::now();
             let output = self.ctx.run(input.take_egui_input(window), |ctx| {
                 if let Some(app) = &mut self.app { app.draw(ctx); }
                 else { egui::CentralPanel::default().show(ctx, |ui| { ui.heading("Could not open BandwidthLimiter"); ui.label(self.startup_error.as_deref().unwrap_or("Unknown startup error")); ui.label("Existing settings have been preserved. Close another instance or inspect the data directory."); }); }
             });
+            self.layout_ns += layout_start.elapsed().as_nanos();
             input.handle_platform_output(window, output.platform_output.clone());
+            let raster_start = Instant::now();
             self.painter
                 .raster(&self.ctx, &output, size.width, size.height);
+            self.raster_ns += raster_start.elapsed().as_nanos();
             self.layout_count += 1;
             if let Some(viewport) = output.viewport_output.get(&egui::ViewportId::ROOT) {
                 self.scheduling.wake(Instant::now(), viewport.repaint_delay);
             }
         }
+        let present_start = Instant::now();
         let surface = self
             .surface
             .as_mut()
@@ -130,6 +175,7 @@ impl Host {
                 (u32::from(pixel[0]) << 16) | (u32::from(pixel[1]) << 8) | u32::from(pixel[2]);
         }
         buffer.present()?;
+        self.present_ns += present_start.elapsed().as_nanos();
         self.present_count += 1;
         if !self.shown {
             window.set_visible(true);
@@ -172,6 +218,8 @@ impl ApplicationHandler<Wake> for Host {
             crate::design::apply(&self.ctx);
             match self.bootstrap.take().ok_or("Startup state missing")? {
                 Ok((guard, config, usage)) => {
+                    self.instance =
+                        crate::instance::Instance::new(&self.directory, self.proxy.clone()).ok();
                     self.app = Some(App::new(
                         config,
                         usage,
@@ -240,7 +288,7 @@ impl ApplicationHandler<Wake> for Host {
                     if let Some(w) = &self.window {
                         w.set_visible(false);
                     }
-                    self.scheduling.visibility(false);
+                    self.visibility(false);
                 } else if let Some(app) = &mut self.app {
                     app.request_quit();
                 } else {
@@ -261,7 +309,7 @@ impl ApplicationHandler<Wake> for Host {
                             .window
                             .as_ref()
                             .is_some_and(|w| w.is_minimized() == Some(true));
-                    self.scheduling.visibility(
+                    self.visibility(
                         !self.minimized
                             && (!self.shown
                                 || self
@@ -271,7 +319,7 @@ impl ApplicationHandler<Wake> for Host {
                     );
                 }
                 if let WindowEvent::Occluded(occluded) = &other {
-                    self.scheduling.visibility(
+                    self.visibility(
                         !occluded
                             && !self.minimized
                             && (!self.shown
@@ -305,6 +353,18 @@ impl ApplicationHandler<Wake> for Host {
         });
     }
     fn exiting(&mut self, _: &ActiveEventLoop) {
+        self.record_segment();
+        if let Some(path) = &self.diagnostics {
+            let report = serde_json::json!({ "backend": "egui CPU rasterizer + softbuffer Win32 GDI", "layouts": self.layout_count,
+                "presents": self.present_count, "layout_ms": self.layout_ns as f64 / 1e6,
+                "raster_ms": self.raster_ns as f64 / 1e6, "present_ms": self.present_ns as f64 / 1e6,
+                "hidden_redraw_requests_skipped": self.hidden_redraws, "segments": self.segments,
+                "gpu_measurement": "not collected; use separate process sampling for the runtime gate" });
+            if let Ok(bytes) = serde_json::to_vec_pretty(&report) {
+                let _ = std::fs::write(path, bytes);
+            }
+        }
+        self.instance.take();
         self.tray.take();
         self.surface.take();
         eprintln!(
