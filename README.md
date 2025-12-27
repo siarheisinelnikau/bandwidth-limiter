@@ -32,21 +32,21 @@ If dependencies have not already been cached, omit `-Offline` when packaging and
 
 ## Use after manual validation
 
-1. Start the portable EXE. Open **Rules & schedules** and add the full path to an application executable, or use **Refresh → Add rule** in the Windows inventory.
-2. Set caps in **KiB/s** (1024 bytes per second) and a combined daily quota in **MiB**. Zero means unlimited. Mark background download applications for Call mode. Save changes.
-3. Start the loopback proxy in **Traffic**. In the selected application's own proxy settings, choose SOCKS5, host `127.0.0.1`, port `1088` (or the saved port). The proxy does not autostart on launch.
-4. Route a small test transfer through it. Compare **Measured proxy activity** with the policy. Toggle **Call mode** to apply the call caps. This changes existing flows at the next payload operation without altering saved rules.
-5. Stop the proxy or close BandwidthLimiter to close its active connections. Remove the SOCKS setting in the client application to restore direct connectivity.
+1. In **Applications**, choose **Add application** and enter the full EXE path, or choose **Connections → Refresh connections → Add rule**.
+2. Set download/upload caps in **KiB/s** (1024 bytes per second). Open **Quota & schedule** for a combined daily quota in **MiB** or a weekly window. Zero means unlimited. Mark background download apps for Call mode. Use **Save changes** in the persistent unsaved-changes bar.
+3. Choose **Start limiter**. In the selected application's own settings, choose SOCKS5, host `127.0.0.1`, port `1088` (or the saved port). **Connection setup** shows the details. The proxy does not autostart on launch.
+4. Route a small test transfer through it. Application rows show measured proxy rates; selecting a row shows its configured limits. Toggle **Call mode** to lower background app caps at the next payload operation.
+5. With a tray icon available, closing X hides the same window and keeps work active. Click the icon to open its short menu: Open, Start/Pause, Call mode, Settings, Quit. **Pause limiter** or **Quit** closes proxy connections. If tray creation fails, closing X exits instead of leaving an inaccessible process. Native tray/restore behavior remains pending interactive verification.
 
 Only SOCKS5 `CONNECT` is supported. UDP associate, BIND, QUIC, DNS-over-UDP forwarding and transparent capture are not implemented. SOCKS domain names resolve on the proxy's worker, with no TLS interception or payload inspection. Incoming proxy connections use IPv4 loopback; destination connections support IPv4 and IPv6. An application that uses separate downloader/helper executables needs a rule for each actual connecting executable. There are at most 32 concurrent proxy flows. This is a cooperative utility, not a mechanism to prevent an application from bypassing a policy.
 
 Equal schedule start/end times mean all day on the selected weekdays. End times are exclusive. For Sunday 23:00–Monday 01:00, select Sunday with `23:00` to `01:00`. Local clock/timezone changes affect calendar schedules and quota dates; pacing uses a monotonic clock.
 
-Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separately from the executable. Edits take effect only after a successful save. A corrupt or unsupported settings file is preserved and produces a startup error. A data-directory file lock prevents concurrent instances. Call mode and the proxy start in the off state each launch. Closing X exits the application; there is no tray/hide-on-close behavior.
+Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separately from the executable. Edits take effect only after a successful save. A corrupt or unsupported settings file is preserved and produces a startup error. A data-directory file lock prevents concurrent workers; a same-session named event requests that the running instance reopen its window. Call mode and the proxy start off each launch. Foreground activation, keyboard traversal and repeated hide/restore cycles still need native validation.
 
 ## Updates
 
-**Settings & updates** shows the installed version, **Check for updates**, and the persistent **Check for updates on startup** toggle (on by default). Save the toggle to make it apply on the next launch. Disabled means no startup update request. Startup checks run on one background worker; no-update results and transient errors stay in Settings, while a newer version gets an inline notice.
+**Settings** shows the installed version, **Check for updates**, and the persistent **Check for updates on startup** toggle (on by default). Save the toggle to make it apply on the next launch. Disabled means no startup update request. Startup checks run on one background worker; no-update results and transient errors stay in Settings, while a newer version gets an inline notice.
 
 The planned canonical repository is [siarheisinelnikau/bandwidth-limiter](https://github.com/siarheisinelnikau/bandwidth-limiter). A missing repository/release or HTTP failure is an error, never an up-to-date result. Stable semantic versions and the exact compatible Windows x64 asset name are required. Nothing has been published by this development session.
 
@@ -58,6 +58,20 @@ See [verification status](docs/VERIFICATION.md), [architecture](docs/ARCHITECTUR
 
 For the new backend see [WFP source status](backend/README.md), [design/lifecycle review](docs/WFP-DESIGN.md), and [manual VM build/install/removal instructions](docs/WFP-SETUP.md). `scripts/build-wfp.ps1` only builds; it does not install or launch anything. Driver/service updates are separate from portable GUI updates.
 
-**Real main-window and settings screenshots are pending.** The unattended session explicitly forbids launching GUI applications or capturing screenshots. No mock screenshots or broken image links are included. Window layout, DPI, graphics, idle CPU, real application identity, real transfers, and update replacement remain subject to manual validation.
+The interface uses **egui CPU rasterization + softbuffer's Win32 GDI presentation**. eframe, OpenGL and wgpu are removed. Idle rendering is event-driven; hidden/minimized windows skip layout, rasterization and presentation in the host. These are source-level behavior and unit checks, not measured native idle/hidden performance. The full runtime gate remains incomplete because ordinary GUI launches and computer use were not performed.
+
+The images below are real application-generated **client-area renders with clearly marked artificial preview data**, produced by the same UI components and CPU rasterizer without creating a native window. No desktop screenshot, user process inventory or network access was used. They verify static layout, not native title bars, tray clicks, performance or actual shaping.
+
+![Applications screen rendered by BandwidthLimiter with artificial preview data](docs/screenshots/applications.png)
+
+![Settings screen rendered by BandwidthLimiter with artificial preview data](docs/screenshots/settings.png)
+
+To reproduce the finite five-screen capture after packaging:
+
+```powershell
+./scripts/render-preview.ps1
+```
+
+It uses a fresh output directory, a 25-second external timeout, and the EXE's early `--render-preview ABSOLUTE_DIRECTORY` branch. That branch writes PNGs and exits before normal settings, workers, update checks, instance events or tray initialization. See [design and rendering verification](docs/UI-VERIFICATION.md) for the captured empty/error/125% states and remaining checks. Normal operation can opt into exit-time frame diagnostics with `--diagnostics ABSOLUTE_JSON_PATH`; that mode is intended for later bounded native testing and was not launched here.
 
 Licensed under [MIT](LICENSE). Dependency licenses remain their own; see [third-party notes](docs/THIRD-PARTY.md).

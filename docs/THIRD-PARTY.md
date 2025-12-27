@@ -4,7 +4,11 @@ BandwidthLimiter's own source is MIT-licensed. `Cargo.lock` records exact resolv
 
 | Direct component | Purpose | Declared license |
 | --- | --- | --- |
-| eframe / egui | Native desktop interface and embedded fonts | MIT OR Apache-2.0; bundled font notices also apply |
+| egui / egui-winit | Interface, input, clipboard and embedded fonts | MIT OR Apache-2.0; bundled font notices also apply |
+| egui_software_backend | CPU rasterization | MIT OR Apache-2.0 |
+| softbuffer | Win32 GDI bitmap presentation | MIT OR Apache-2.0 |
+| tray-icon / muda | Native tray icon and menu | MIT OR Apache-2.0 |
+| png | Bounded application preview files | MIT OR Apache-2.0 |
 | winit | Window events and reactive event-loop adapter | Apache-2.0 |
 | chrono | Local calendar scheduling | MIT OR Apache-2.0 |
 | serde / serde_json | Settings and release data | MIT OR Apache-2.0 |

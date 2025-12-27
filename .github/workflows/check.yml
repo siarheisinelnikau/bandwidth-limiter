@@ -21,6 +21,9 @@ jobs:
       - name: Build standalone executable and checksum
         shell: pwsh
         run: ./scripts/package.ps1 -Offline
+      - name: Render finite headless application previews
+        shell: pwsh
+        run: ./scripts/render-preview.ps1 -OutputDirectory (Join-Path (Get-Location) 'dist/preview')
       - name: Resolve experimental service dependencies
         run: cargo fetch --locked --manifest-path backend/service/Cargo.toml
       - name: Check and build experimental user-mode broker only
