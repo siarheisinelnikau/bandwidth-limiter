@@ -1,0 +1,13 @@
+{
+  "backend": "egui_software_backend 0.0.2 CPU rasterizer",
+  "elapsed_ms": 94,
+  "fixture_data": true,
+  "frames_per_screen": 2,
+  "native_window": false,
+  "network_workers": 0,
+  "normal_runtime_gate": "not measured",
+  "screens": 5,
+  "tray_created": false,
+  "user_data_access": false,
+  "version": "0.1.0"
+}
