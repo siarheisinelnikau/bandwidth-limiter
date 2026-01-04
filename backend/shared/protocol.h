@@ -1,6 +1,6 @@
 #pragma once
 /* Fixed-width, pointer-free METHOD_BUFFERED ABI. Keep service/protocol.rs in sync. */
-#define BL_VERSION 1u
+#define BL_VERSION 2u
 #define BL_MAX_RULES 32u
 #define BL_MAX_FLOWS 512u
 #define BL_DEVICE_TYPE 0x22u
@@ -17,17 +17,23 @@
 #define BL_STATE_QUIESCING 4u
 #define BL_TICKS_PER_SECOND 10000000ull
 #define BL_MAX_RATE (1024ull * 1024ull * 1024ull)
+#define BL_MAX_SEGMENT (64ull * 1024ull)
+#define BL_MAX_QUEUED_BYTES (8ull * 1024ull * 1024ull)
+#define BL_MAX_SEGMENTS 4096u
+#define BL_MAX_FLOW_SEGMENTS 128u
 
 typedef unsigned long long BL_U64;
 typedef unsigned int BL_U32;
 typedef struct BL_CONFIG {
     BL_U32 version, size, count, lease_ms;
     BL_U64 download_bytes_per_second[BL_MAX_RULES];
+    BL_U64 upload_bytes_per_second[BL_MAX_RULES];
 } BL_CONFIG;
 typedef struct BL_STATUS {
     BL_U32 version, size, state, pending;
     BL_U32 flows, filters, continuations, reserved;
-    BL_U64 admitted_bytes, deferrals, continue_failures, untracked_flows;
+    BL_U64 admitted_bytes, upload_bytes, queued_bytes, queued_peak;
+    BL_U64 injections, inject_failures, untracked_flows, aborted_flows;
 } BL_STATUS;
 
 /* Stable GUID namespace: data1 below; data2=0x752d, data3=0x4ae7,
