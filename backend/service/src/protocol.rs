@@ -18,15 +18,17 @@ pub struct Config {
     pub count: u32,
     pub lease_ms: u32,
     pub download_bytes_per_second: [u64; MAX_RULES],
+    pub upload_bytes_per_second: [u64; MAX_RULES],
 }
 impl Config {
     pub fn new(rates: impl IntoIterator<Item = u64>) -> Self {
         let mut value = Self {
-            version: 1,
+            version: 2,
             size: size_of::<Self>() as u32,
             count: 0,
             lease_ms: 5000,
             download_bytes_per_second: [0; MAX_RULES],
+            upload_bytes_per_second: [0; MAX_RULES],
         };
         for rate in rates {
             value.download_bytes_per_second[value.count as usize] = rate;
@@ -47,9 +49,13 @@ pub struct Status {
     pub continuations: u32,
     pub reserved: u32,
     pub admitted_bytes: u64,
-    pub deferrals: u64,
-    pub continue_failures: u64,
+    pub upload_bytes: u64,
+    pub queued_bytes: u64,
+    pub queued_peak: u64,
+    pub injections: u64,
+    pub inject_failures: u64,
     pub untracked_flows: u64,
+    pub aborted_flows: u64,
 }
 pub fn guid(id: u32) -> windows_sys::core::GUID {
     windows_sys::core::GUID {
@@ -72,8 +78,8 @@ mod tests {
     use super::*;
     #[test]
     fn c_and_rust_wire_layout_agree() {
-        assert_eq!(size_of::<Config>(), 272);
-        assert_eq!(size_of::<Status>(), 64);
+        assert_eq!(size_of::<Config>(), 528);
+        assert_eq!(size_of::<Status>(), 96);
         assert_eq!(std::mem::offset_of!(Status, admitted_bytes), 32);
         let header = include_str!("../../shared/protocol.h");
         assert!(header.contains("#define BL_PROVIDER_ID 0xb1070001u"));

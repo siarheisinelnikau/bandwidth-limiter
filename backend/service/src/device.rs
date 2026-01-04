@@ -61,7 +61,7 @@ impl Device {
         };
         let returned = self.request(protocol::QUERY, &[], bytes)?;
         if returned as usize != size_of::<protocol::Status>()
-            || status.version != 1
+            || status.version != 2
             || status.size as usize != size_of::<protocol::Status>()
         {
             return Err("Incompatible WFP driver protocol".into());
@@ -78,6 +78,7 @@ impl Device {
                 protocol::DRAINING | protocol::QUIESCING | protocol::QUIESCED
             ) && status.pending == 0
                 && status.continuations == 0
+                && status.flows == 0
             {
                 return Ok(());
             }
