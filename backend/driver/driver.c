@@ -16,6 +16,7 @@ typedef struct BL_FLOW {
 typedef struct BL_ITEM {
     LIST_ENTRY link; BL_FLOW *flow; NET_BUFFER_LIST *chain;
     SIZE_T bytes; UINT32 flags, direction; LONG references, failed;
+    BOOLEAN building, discarded;
 } BL_ITEM;
 static KSPIN_LOCK gLock;
 static KMUTEX gControl;
@@ -67,7 +68,11 @@ static VOID NTAPI BlFlowDelete(UINT16 layer, UINT32 callout, UINT64 context) {
     BL_FLOW *flow = (BL_FLOW *)(ULONG_PTR)context; LIST_ENTRY discarded; KIRQL irql; UINT32 d;
     UNREFERENCED_PARAMETER(layer); UNREFERENCED_PARAMETER(callout); InitializeListHead(&discarded);
     KeAcquireSpinLock(&gLock, &irql); flow->closing = TRUE; RemoveEntryList(&flow->link); --gStatus.flows;
-    for (d = 0; d < 2; ++d) while (!IsListEmpty(&flow->queue[d])) InsertTailList(&discarded, RemoveHeadList(&flow->queue[d]));
+    for (d = 0; d < 2; ++d) while (!IsListEmpty(&flow->queue[d])) {
+        BL_ITEM *item = CONTAINING_RECORD(RemoveHeadList(&flow->queue[d]), BL_ITEM, link);
+        if (item->building) item->discarded = TRUE; /* classify owns cleanup until clone returns */
+        else InsertTailList(&discarded, &item->link);
+    }
     KeReleaseSpinLock(&gLock, irql);
     while (!IsListEmpty(&discarded)) BlItemDiscard(CONTAINING_RECORD(RemoveHeadList(&discarded), BL_ITEM, link));
     BlFlowRelease(flow); /* in-flight items retain separate references */
@@ -117,28 +122,30 @@ static VOID NTAPI BlStream(const FWPS_INCOMING_VALUES0 *values, const FWPS_INCOM
         flow->failed = TRUE; ++gStatus.inject_failures; BlScheduleLocked(1);
         KeReleaseSpinLock(&gLock, irql); packet->streamAction = FWPS_STREAM_ACTION_DROP_CONNECTION; return;
     }
+    item = ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(*item), BL_TAG);
+    if (!item) { flow->failed = TRUE; ++gStatus.inject_failures; BlScheduleLocked(1);
+        KeReleaseSpinLock(&gLock, irql); packet->streamAction = FWPS_STREAM_ACTION_DROP_CONNECTION; return; }
+    RtlZeroMemory(item, sizeof(*item)); item->flow = flow; item->bytes = bytes;
+    item->flags = flags; item->direction = direction; item->building = TRUE;
+    /* Reserve FIFO position before cloning: a later indication cannot overtake a slow clone. */
+    InsertTailList(&flow->queue[direction], &item->link);
     ++gStatus.pending; ++flow->items; gStatus.queued_bytes += bytes;
     if (gStatus.queued_bytes > gStatus.queued_peak) gStatus.queued_peak = gStatus.queued_bytes;
     InterlockedIncrement(&flow->references); KeReleaseSpinLock(&gLock, irql);
-    item = ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(*item), BL_TAG);
-    if (item) {
-        RtlZeroMemory(item, sizeof(*item)); item->flow = flow; item->bytes = bytes; item->flags = flags; item->direction = direction;
-        if (bytes != 0) status = FwpsCloneStreamData0(packet->streamData, NULL, NULL, 0, &item->chain);
+    if (bytes != 0) status = FwpsCloneStreamData0(packet->streamData, NULL, NULL, 0, &item->chain);
         if (NT_SUCCESS(status) && item->chain) {
             NET_BUFFER_LIST *node; ULONG nodes = 0;
             for (node = item->chain; node; node = NET_BUFFER_LIST_NEXT_NBL(node)) if (++nodes > 256) { status = STATUS_INSUFFICIENT_RESOURCES; break; }
         }
-    } else status = STATUS_INSUFFICIENT_RESOURCES;
     KeAcquireSpinLock(&gLock, &irql);
-    if (!item || !NT_SUCCESS(status) || flow->closing) {
+    if (!NT_SUCCESS(status) || flow->closing || item->discarded) {
         flow->failed = TRUE; ++gStatus.inject_failures; BlScheduleLocked(1);
+        if (!item->discarded) RemoveEntryList(&item->link);
         KeReleaseSpinLock(&gLock, irql);
-        if (item) BlItemDiscard(item);
-        else { KeAcquireSpinLock(&gLock, &irql); --gStatus.pending; --flow->items; gStatus.queued_bytes -= bytes;
-            KeReleaseSpinLock(&gLock, irql); BlFlowRelease(flow); }
+        BlItemDiscard(item);
         packet->streamAction = FWPS_STREAM_ACTION_DROP_CONNECTION; return;
     }
-    InsertTailList(&flow->queue[direction], &item->link); BlScheduleLocked(10); KeReleaseSpinLock(&gLock, irql);
+    item->building = FALSE; BlScheduleLocked(10); KeReleaseSpinLock(&gLock, irql);
 }
 static NTSTATUS NTAPI BlNotify(FWPS_CALLOUT_NOTIFY_TYPE type, const GUID *key, FWPS_FILTER0 *filter) {
     KIRQL irql; UNREFERENCED_PARAMETER(key); UNREFERENCED_PARAMETER(filter);
@@ -161,7 +168,7 @@ static VOID BlTimer(KDPC *dpc, VOID *ctx, VOID *a, VOID *b) {
         if (flow->failed || gStatus.state != BL_STATE_ARMED) continue;
         for (d = 0; d < 2 && count < RTL_NUMBER_OF(items); ++d) if (!flow->busy[d] && !IsListEmpty(&flow->queue[d])) {
             BL_ITEM *item = CONTAINING_RECORD(flow->queue[d].Flink, BL_ITEM, link);
-            if (BlBudgetTakeWhole(&gBudgets[flow->slot][d], item->bytes, now)) {
+            if (!item->building && BlBudgetTakeWhole(&gBudgets[flow->slot][d], item->bytes, now)) {
                 RemoveEntryList(&item->link); flow->busy[d] = TRUE; ++gStatus.continuations;
                 items[count++] = item;
             }

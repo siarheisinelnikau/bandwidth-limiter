@@ -94,7 +94,7 @@ impl Engine {
     pub fn install(&self, policy: &Policy) -> Result<(), String> {
         self.transaction(|| {
             let mut provider_id = p::guid(p::PROVIDER);
-            let mut title = wide("BandwidthLimiter experimental TCP receive shaping");
+            let mut title = wide("BandwidthLimiter experimental bidirectional TCP shaping");
             let display = FWPM_DISPLAY_DATA0 {
                 name: title.as_mut_ptr(),
                 description: null_mut(),

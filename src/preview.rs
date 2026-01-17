@@ -72,6 +72,8 @@ pub fn render(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
             1.0,
         ),
         ("settings", Page::Settings, false, false, 980, 720, 1.0),
+        ("wfp-unavailable", Page::Wfp, false, true, 980, 720, 1.0),
+        ("wfp-connected", Page::Wfp, false, false, 980, 720, 1.0),
         ("empty", Page::Applications, true, false, 980, 720, 1.0),
         ("error", Page::Applications, false, true, 980, 720, 1.0),
         (
@@ -90,8 +92,17 @@ pub fn render(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let ctx = egui::Context::default();
         crate::design::apply(&ctx);
         ctx.set_pixels_per_point(scale);
-        let (config, view) = fixture(empty);
-        let mut app = App::fixture(config, view, page, error);
+        let (mut config, view) = fixture(empty);
+        if page == Page::Wfp {
+            for rule in &mut config.rules {
+                rule.daily_quota_mib = 0;
+                rule.schedule = None;
+            }
+        }
+        let mut app = App::fixture(config, view, page, error && page != Page::Wfp);
+        if page == Page::Wfp {
+            app.wfp_fixture(!error);
+        }
         let mut paint = Paint::new();
         // Two bounded passes allow font texture creation and initial layout to settle.
         for frame in 0..2 {
@@ -126,7 +137,7 @@ pub fn render(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
         directory.join("capture.json"),
         serde_json::to_vec_pretty(&serde_json::json!({
             "version": env!("CARGO_PKG_VERSION"), "backend": "egui_software_backend 0.0.2 CPU rasterizer", "native_window": false,
-            "fixture_data": true, "frames_per_screen": 2, "screens": 5, "elapsed_ms": start.elapsed().as_millis(),
+            "fixture_data": true, "frames_per_screen": 2, "screens": 7, "elapsed_ms": start.elapsed().as_millis(),
             "network_workers": 0, "user_data_access": false, "tray_created": false, "normal_runtime_gate": "not measured"
         }))?,
     )?;

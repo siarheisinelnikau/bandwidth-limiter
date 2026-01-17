@@ -136,6 +136,7 @@ checksum = "f2032f911046de80f0a198e0901378627c33f59ea0ac00e363d481118bd70a53"
 name = "bandwidth-limiter"
 version = "0.1.0"
 dependencies = [
+ "bandwidth-limiter-control",
  "chrono",
  "egui",
  "egui-winit",
@@ -152,6 +153,15 @@ dependencies = [
  "ureq",
  "windows-sys 0.61.2",
  "winit",
+]
+
+[[package]]
+name = "bandwidth-limiter-control"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

@@ -1,6 +1,8 @@
 #![cfg(windows)]
+mod controller;
 mod device;
 mod filters;
+mod ipc;
 mod policy;
 mod protocol;
 mod security;
@@ -63,6 +65,39 @@ fn shutdown(device: &device::Device, engine: &filters::Engine) -> Result<(), Str
     engine.remove_owned()?;
     device.clear_flows()
 }
+struct NativeBackend {
+    device: device::Device,
+    engine: filters::Engine,
+}
+impl controller::Backend for NativeBackend {
+    fn snapshot(&self) -> Result<bandwidth_limiter_control::Snapshot, String> {
+        let s = self.device.status()?;
+        Ok(bandwidth_limiter_control::Snapshot {
+            armed: s.state == protocol::ARMED,
+            flows: s.flows,
+            queued_segments: s.pending,
+            in_flight: s.continuations,
+            queued_bytes: s.queued_bytes,
+            download_submitted: s.admitted_bytes,
+            upload_submitted: s.upload_bytes,
+            injection_failures: s.inject_failures,
+            untracked_flows: s.untracked_flows,
+        })
+    }
+    fn apply(&self, policy: &policy::Policy) -> Result<(), String> {
+        policy.validate()?;
+        shutdown(&self.device, &self.engine)?;
+        self.device.configure(&policy::wire(policy))?;
+        if let Err(error) = self.engine.install(policy) {
+            let cleanup = shutdown(&self.device, &self.engine);
+            return Err(format!("{error}; cleanup: {cleanup:?}"));
+        }
+        self.device.command(protocol::HEARTBEAT)
+    }
+    fn pause(&self) -> Result<(), String> {
+        shutdown(&self.device, &self.engine)
+    }
+}
 fn run(handle: SERVICE_STATUS_HANDLE) -> Result<(), String> {
     let path = service_policy_path()?;
     // The service has no user-facing IPC and reads only its administrator-owned installation directory.
@@ -74,29 +109,40 @@ fn run(handle: SERVICE_STATUS_HANDLE) -> Result<(), String> {
         security::require_admin_owned(target)?;
     }
     let policy = read_policy(&path)?;
-    let device = device::Device::open()?;
-    let engine = filters::Engine::open()?;
-    shutdown(&device, &engine)?; // recover a previous broker's non-dynamic objects only after drain
-    device.configure(&policy.wire())?;
-    if let Err(error) = engine.install(&policy) {
-        let cleanup = shutdown(&device, &engine);
-        return Err(format!("{error}; rollback/drain result: {cleanup:?}"));
-    }
-    if device.status()?.state != protocol::ARMED {
-        shutdown(&device, &engine)?;
-        return Err("Driver lease expired during filter setup; policy was removed".into());
-    }
+    use controller::Backend;
+    let backend = NativeBackend {
+        device: device::Device::open()?,
+        engine: filters::Engine::open()?,
+    };
+    let server = ipc::Server::new()?;
+    backend.apply(&policy)?;
     report(handle, SERVICE_RUNNING, 0, 0);
     let mut failure = None;
     while !STOP.load(Ordering::Acquire) {
-        if let Err(error) = device.command(protocol::HEARTBEAT) {
-            STOP.store(true, Ordering::Release);
+        if backend.snapshot()?.armed
+            && let Err(error) = backend.device.command(protocol::HEARTBEAT)
+        {
             failure = Some(format!("Heartbeat failed; draining: {error}"));
+            break;
         }
-        std::thread::sleep(Duration::from_millis(500));
+        match server.incoming.recv_timeout(Duration::from_millis(500)) {
+            Ok(message) => {
+                let response =
+                    controller::execute(&backend, message.request, message.administrator);
+                let _ = message.reply.try_send(response);
+            }
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                failure = Some(
+                    "WFP pipe worker stopped; draining instead of polling a closed queue".into(),
+                );
+                break;
+            }
+            Err(_) => {}
+        }
     }
     report(handle, SERVICE_STOP_PENDING, 0, 1);
-    shutdown(&device, &engine)?;
+    drop(server);
+    backend.pause()?;
     if let Some(error) = failure {
         Err(error)
     } else {
@@ -160,7 +206,7 @@ fn command() -> Result<(), String> {
     match args.get(1).and_then(|s| s.to_str()) {
         Some("--validate-policy") if args.len() == 3 => {
             let policy = read_policy(Path::new(&args[2]))?;
-            println!("Valid version 1 receive-only TCP policy: {} executable rules. No device or WFP access.", policy.rules.len());
+            println!("Valid version 2 bidirectional TCP policy: {} executable rules. No device or WFP access.", policy.rules.len());
             Ok(())
         }
         Some("--service") if args.len() == 2 => {
