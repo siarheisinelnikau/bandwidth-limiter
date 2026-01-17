@@ -18,6 +18,7 @@ pub enum Page {
     Applications,
     Connections,
     Settings,
+    Wfp,
 }
 pub struct App {
     config: Config,
@@ -202,9 +203,9 @@ impl App {
                         ui.colored_label(
                             if self.running() { ACCENT } else { MUTED },
                             if self.running() {
-                                "Limiter running"
+                                "Proxy running"
                             } else {
-                                "Limiter paused"
+                                "Proxy paused"
                             },
                         );
                     });
@@ -214,6 +215,7 @@ impl App {
                     for (page, label) in [
                         (Page::Applications, "Applications"),
                         (Page::Connections, "Connections"),
+                        (Page::Wfp, "System TCP (WFP)"),
                         (Page::Settings, "Settings"),
                     ] {
                         ui.selectable_value(&mut self.page, page, label);
@@ -229,9 +231,9 @@ impl App {
                     design::note(
                         ui,
                         if self.tray_available {
-                            "Close the window to keep limiting in the tray. Choose Quit to stop."
+                            "Closing hides this window. Quit stops the proxy; the WFP service is independent."
                         } else {
-                            "Only applications using the local SOCKS5 proxy are limited."
+                            "Proxy controls affect SOCKS5 traffic. System TCP has separate WFP controls."
                         },
                     );
                 }
@@ -273,6 +275,7 @@ impl App {
                     Page::Applications => self.applications(ui),
                     Page::Connections => self.connections(ui),
                     Page::Settings => self.settings(ui),
+                    Page::Wfp => self.wfp(ui),
                 });
             });
     }
@@ -323,7 +326,7 @@ impl App {
         ui.add_space(10.0);
         ui.collapsing("Connection setup · SOCKS5 only", |ui| {
             ui.label(format!("In the app's proxy settings, choose SOCKS5 at 127.0.0.1:{} with no authentication.", self.config.proxy_port));
-            ui.label("Direct connections and UDP are unaffected. System-wide WFP control is experimental and is not connected to this window.");
+            ui.label("Proxy controls leave direct connections and UDP unaffected. Use System TCP (WFP) for the separate experimental service.");
         });
         ui.add_space(12.0);
         if self.config.rules.is_empty() {
@@ -639,8 +642,84 @@ impl App {
                 ui.horizontal(|ui| { ui.label("SOCKS5 port"); let enabled = !self.running(); self.dirty |= ui.add_enabled(enabled, egui::DragValue::new(&mut self.config.proxy_port).range(1..=65535)).changed(); });
                 ui.label("Stop the limiter before changing the port, then save and restart it."); design::note(ui, format!("Settings and usage: {}", self.directory.display()));
             });
-            ui.collapsing("System-wide WFP backend · experimental", |ui| { ui.label("Driver and broker sources are included separately. The driver still needs a WDK build, signing and VM validation. This window does not control it."); ui.label("The experimental driver is incoming TCP only. Its service policy does not support upload, UDP, quotas, schedules or Call mode."); });
+            if ui.button("System TCP (WFP) · service controls").clicked() { self.page = Page::Wfp; }
             ui.collapsing("About and limitations", |ui| { ui.label("CPU-rendered interface · MIT license"); ui.label("Proxy rates measure forwarded TCP payloads. Incoming network buffers may still receive bursts. Quotas are checkpointed, so forced exit can lose recent usage."); ui.hyperlink_to("Project repository", "https://github.com/siarheisinelnikau/bandwidth-limiter"); });
+        });
+    }
+}
+impl App {
+    fn wfp_command(&mut self, command: bandwidth_limiter::wfp::Command) {
+        if self.preview {
+            return;
+        }
+        let Ok(mut state) = self.runtime.wfp_state.try_lock() else {
+            return;
+        };
+        if state.busy {
+            return;
+        }
+        if self.runtime.wfp_commands.try_send(command).is_err() {
+            self.message = "A WFP service request is already pending.".into();
+        } else {
+            state.busy = true;
+        }
+    }
+    pub fn wfp_fixture(&mut self, connected: bool) {
+        let mut state = self.runtime.wfp_state.lock().unwrap();
+        if connected {
+            state.response = Some(bandwidth_limiter_control::Response {
+                version: 2,
+                can_configure: true,
+                status: Some(bandwidth_limiter_control::Snapshot {
+                    armed: true,
+                    flows: 3,
+                    upload_submitted: 65536,
+                    download_submitted: 131072,
+                    ..Default::default()
+                }),
+                error: None,
+            });
+        } else {
+            state.error = Some("The WFP service is unavailable. Install/start reviewed components separately; this app does not install or elevate.".into());
+        }
+    }
+    fn wfp(&mut self, ui: &mut egui::Ui) {
+        use bandwidth_limiter::wfp::Command as WfpCommand;
+        let state = self
+            .runtime
+            .wfp_state
+            .try_lock()
+            .map(|s| s.clone())
+            .unwrap_or_default();
+        egui::ScrollArea::vertical().id_salt("wfp-controls").show(ui, |ui| {
+            design::section(ui, "System TCP limits · experimental");
+            ui.label("Control a separately installed WFP service. No SOCKS5 setup is needed for selected apps.");
+            ui.colored_label(WARNING, "Driver source has not been WDK-built or VM-validated in this environment.");
+            ui.add_space(10.0); ui.label("No installer, service startup or automatic elevation is provided here. All service requests require a click.");
+            if ui.add_enabled(!state.busy, egui::Button::new("Check service")).clicked() { self.wfp_command(WfpCommand::Refresh); }
+            if state.busy { ui.label("Waiting for the service…"); }
+            if let Some(error) = &state.error { ui.colored_label(WARNING, error); }
+            if let Some(response) = &state.response {
+                if let Some(status) = &response.status {
+                    ui.colored_label(if status.armed { ACCENT } else { MUTED }, if status.armed { "Last observed state: WFP policy armed" } else { "Last observed state: WFP drained / paused" });
+                    ui.label(format!("{} tracked flows · {} queued indications · {} injections in flight", status.flows, status.queued_segments, status.in_flight));
+                    ui.label(format!("Submitted to TCP: {:.1} KiB download · {:.1} KiB upload", status.download_submitted as f64 / 1024.0, status.upload_submitted as f64 / 1024.0));
+                    design::note(ui, format!("{} injection failures · {} untracked flows · {} queued bytes", status.injection_failures, status.untracked_flows, status.queued_bytes));
+                    design::note(ui, "This is a manual snapshot, not live rates or proof of wire-level enforcement.");
+                }
+                if !response.can_configure { ui.label("Read-only connection. Administrator authorization is required to apply or pause a WFP policy."); }
+            }
+            ui.add_space(10.0); ui.separator(); design::section(ui, "Apply saved application limits");
+            ui.label("Uses enabled application paths and download/upload caps from Applications. At most 32 rules; 0 in one direction means unlimited.");
+            ui.label("Quotas, schedules, UDP and WFP Call mode are not supported. Unsupported rules are rejected together, without partial application.");
+            if self.dirty { ui.colored_label(WARNING, "Save your application changes first."); }
+            let permitted = !state.busy && !self.dirty && state.response.as_ref().is_some_and(|r| r.can_configure);
+            let eligible = bandwidth_limiter::wfp::policy(&self.config, self.call_mode);
+            if let Err(error) = &eligible { design::note(ui, error); }
+            if ui.add_enabled(permitted && eligible.is_ok(), egui::Button::new("Apply WFP limits (closes tracked TCP)")).clicked() { self.wfp_command(WfpCommand::Apply(self.config.clone(), self.call_mode)); }
+            if ui.add_enabled(!state.busy && state.response.as_ref().is_some_and(|r| r.can_configure), egui::Button::new("Pause WFP (closes tracked TCP)")).clicked() { self.wfp_command(WfpCommand::Pause); }
+            design::note(ui, "Apply replaces the in-memory service policy. Reconnect apps afterward. A service restart reloads its protected policy file.");
+            ui.add_space(10.0); ui.label("The service continues independently when this window closes or the GUI quits. Pause WFP explicitly to stop its policy.");
         });
     }
 }

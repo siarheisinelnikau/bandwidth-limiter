@@ -2,6 +2,12 @@ param([switch]$SharedC)
 $ErrorActionPreference = 'Stop'
 Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
+    cargo fmt --manifest-path backend/control/Cargo.toml -- --check
+    if ($LASTEXITCODE -ne 0) { throw 'Control protocol formatting failed' }
+    cargo clippy --locked --offline --manifest-path backend/control/Cargo.toml --all-targets -j 2 -- -D warnings
+    if ($LASTEXITCODE -ne 0) { throw 'Control protocol Clippy failed' }
+    cargo test --locked --offline --manifest-path backend/control/Cargo.toml -j 2
+    if ($LASTEXITCODE -ne 0) { throw 'Control protocol fixture tests failed' }
     cargo fmt --manifest-path backend/service/Cargo.toml -- --check
     if ($LASTEXITCODE -ne 0) { throw 'WFP service formatting check failed' }
     cargo clippy --locked --offline --manifest-path backend/service/Cargo.toml --all-targets -j 2 -- -D warnings

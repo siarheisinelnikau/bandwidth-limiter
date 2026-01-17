@@ -4,3 +4,4 @@ pub mod policy;
 pub mod proxy;
 pub mod storage;
 pub mod updater;
+pub mod wfp;

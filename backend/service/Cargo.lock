@@ -3,9 +3,19 @@
 version = 4
 
 [[package]]
+name = "bandwidth-limiter-control"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "windows-sys",
+]
+
+[[package]]
 name = "bandwidth-limiter-service"
 version = "0.1.0"
 dependencies = [
+ "bandwidth-limiter-control",
  "serde",
  "serde_json",
  "windows-sys",

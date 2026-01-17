@@ -1,6 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
   "rules": [
-    { "executable": "C:\\Lab\\DownloadFixture.exe", "download_kib": 256 }
+    { "executable": "C:\\Lab\\DownloadFixture.exe", "download_kib": 256, "upload_kib": 64 }
   ]
 }

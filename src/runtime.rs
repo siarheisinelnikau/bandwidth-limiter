@@ -46,6 +46,8 @@ pub enum UpdateCommand {
 }
 
 pub struct Runtime {
+    pub wfp_commands: SyncSender<bandwidth_limiter::wfp::Command>,
+    pub wfp_state: Arc<Mutex<bandwidth_limiter::wfp::State>>,
     pub commands: SyncSender<Command>,
     pub events: Receiver<Event>,
     pub view: Arc<Mutex<Arc<View>>>,
@@ -57,10 +59,13 @@ pub struct Runtime {
 impl Runtime {
     /// No workers, I/O, device access or update checks in the headless fixture path.
     pub fn preview() -> Self {
+        let (wfp_commands, _) = mpsc::sync_channel(1);
         let (commands, _) = mpsc::sync_channel(1);
         let (_, events) = mpsc::sync_channel(1);
         let (update_commands, _) = mpsc::sync_channel(1);
         Self {
+            wfp_commands,
+            wfp_state: Arc::new(Mutex::new(Default::default())),
             commands,
             events,
             view: Arc::new(Mutex::new(Arc::new(View::default()))),
@@ -70,6 +75,35 @@ impl Runtime {
         }
     }
     pub fn new(config: Config, usage: Usage, directory: PathBuf, ctx: egui::Context) -> Self {
+        let (wfp_commands, requests) = mpsc::sync_channel(2);
+        let wfp_state = Arc::new(Mutex::new(bandwidth_limiter::wfp::State::default()));
+        let wfp_shared = wfp_state.clone();
+        let wfp_ctx = ctx.clone();
+        thread::Builder::new()
+            .name("wfp-service-client".into())
+            .spawn(move || {
+                while let Ok(command) = requests.recv() {
+                    wfp_shared.lock().unwrap().busy = true;
+                    wfp_ctx.request_repaint();
+                    let result = bandwidth_limiter::wfp::action(command)
+                        .and_then(bandwidth_limiter_control::transport::exchange);
+                    let mut state = wfp_shared.lock().unwrap();
+                    state.busy = false;
+                    match result {
+                        Ok(response) => {
+                            state.error = response.error.clone();
+                            state.response = Some(response);
+                        }
+                        Err(error) => {
+                            state.error = Some(error);
+                            state.response = None;
+                        }
+                    }
+                    drop(state);
+                    wfp_ctx.request_repaint();
+                }
+            })
+            .expect("Cannot create WFP client worker");
         let (commands, rx) = mpsc::sync_channel(8);
         let (tx, events) = mpsc::sync_channel(8);
         let engine = Arc::new(Mutex::new(Engine::new(config, usage)));
@@ -207,6 +241,8 @@ impl Runtime {
             })
             .expect("Cannot create update worker");
         Self {
+            wfp_commands,
+            wfp_state,
             commands,
             events,
             view,
