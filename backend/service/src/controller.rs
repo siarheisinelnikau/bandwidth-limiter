@@ -9,16 +9,16 @@ pub fn execute(backend: &impl Backend, request: Request, administrator: bool) ->
         if request.version != VERSION {
             return Err("Incompatible WFP control version".into());
         }
-        if !matches!(request.action, Action::Status) && !administrator {
+        if !matches!(request.action, Action::Status {}) && !administrator {
             return Err("Administrator authorization is required for WFP changes".into());
         }
         match request.action {
-            Action::Status => {}
+            Action::Status {} => {}
             Action::Apply { policy } => {
                 policy.validate()?;
                 backend.apply(&policy)?;
             }
-            Action::Pause => backend.pause()?,
+            Action::Pause {} => backend.pause()?,
         }
         Ok(())
     })();
@@ -60,7 +60,7 @@ mod tests {
                 &backend,
                 Request {
                     version: VERSION,
-                    action: Action::Status
+                    action: Action::Status {}
                 },
                 false
             )
@@ -72,7 +72,7 @@ mod tests {
                 &backend,
                 Request {
                     version: VERSION,
-                    action: Action::Pause
+                    action: Action::Pause {}
                 },
                 false
             )
@@ -103,7 +103,7 @@ mod tests {
                 &backend,
                 Request {
                     version: VERSION,
-                    action: Action::Pause
+                    action: Action::Pause {}
                 },
                 true
             )

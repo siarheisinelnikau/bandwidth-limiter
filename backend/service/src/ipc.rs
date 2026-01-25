@@ -33,7 +33,7 @@ impl Server {
                     let payload = pipe.read(&worker_stop, Duration::from_secs(2))?;
                     let request = control::decode_request(&payload)?;
                     let administrator = pipe.administrator();
-                    if !matches!(request.action, Action::Status) && !administrator { return Err("Administrator authorization is required to change WFP limits. No elevation is started automatically.".into()); }
+                    if !matches!(request.action, Action::Status {}) && !administrator { return Err("Administrator authorization is required to change WFP limits. No elevation is started automatically.".into()); }
                     let (reply, result) = mpsc::sync_channel(1);
                     tx.try_send(Incoming { request, administrator, reply }).map_err(|_| "WFP controller is busy".to_string())?;
                     let deadline = Instant::now() + Duration::from_secs(35);

@@ -75,7 +75,7 @@ impl controller::Backend for NativeBackend {
         Ok(bandwidth_limiter_control::Snapshot {
             armed: s.state == protocol::ARMED,
             flows: s.flows,
-            queued_segments: s.pending,
+            queued_segments: s.pending.saturating_sub(s.continuations),
             in_flight: s.continuations,
             queued_bytes: s.queued_bytes,
             download_submitted: s.admitted_bytes,
@@ -100,7 +100,8 @@ impl controller::Backend for NativeBackend {
 }
 fn run(handle: SERVICE_STATUS_HANDLE) -> Result<(), String> {
     let path = service_policy_path()?;
-    // The service has no user-facing IPC and reads only its administrator-owned installation directory.
+    // Startup policy comes only from the administrator-owned installation directory.
+    // Authenticated pipe changes are in-memory and never overwrite this file.
     // Deployment must preserve the documented SYSTEM/Administrators-only write ACLs.
     for target in [
         path.as_path(),
@@ -162,7 +163,7 @@ unsafe extern "system" fn service_main(_: u32, _: *mut *mut u16) {
         eprintln!("{error}");
         record_error(error);
     }
-    // Error leaves owned filters resident; driver cleanup/lease expiration releases backpressure.
+    // Error leaves owned filters resident; driver cleanup/lease expiration aborts tracked TCP.
     // A later service start or --recover performs the guarded removal sequence.
     report(
         handle,
