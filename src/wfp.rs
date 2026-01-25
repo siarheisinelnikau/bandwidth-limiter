@@ -40,8 +40,8 @@ pub fn policy(config: &Config, call_mode: bool) -> Result<Policy, String> {
 }
 pub fn action(command: Command) -> Result<Action, String> {
     match command {
-        Command::Refresh => Ok(Action::Status),
-        Command::Pause => Ok(Action::Pause),
+        Command::Refresh => Ok(Action::Status {}),
+        Command::Pause => Ok(Action::Pause {}),
         Command::Apply(config, call) => Ok(Action::Apply {
             policy: policy(&config, call)?,
         }),

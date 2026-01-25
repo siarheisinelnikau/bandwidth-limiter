@@ -133,10 +133,10 @@ static VOID NTAPI BlStream(const FWPS_INCOMING_VALUES0 *values, const FWPS_INCOM
     if (gStatus.queued_bytes > gStatus.queued_peak) gStatus.queued_peak = gStatus.queued_bytes;
     InterlockedIncrement(&flow->references); KeReleaseSpinLock(&gLock, irql);
     if (bytes != 0) status = FwpsCloneStreamData0(packet->streamData, NULL, NULL, 0, &item->chain);
-        if (NT_SUCCESS(status) && item->chain) {
-            NET_BUFFER_LIST *node; ULONG nodes = 0;
-            for (node = item->chain; node; node = NET_BUFFER_LIST_NEXT_NBL(node)) if (++nodes > 256) { status = STATUS_INSUFFICIENT_RESOURCES; break; }
-        }
+    if (NT_SUCCESS(status) && item->chain) {
+        NET_BUFFER_LIST *node; ULONG nodes = 0;
+        for (node = item->chain; node; node = NET_BUFFER_LIST_NEXT_NBL(node)) if (++nodes > 256) { status = STATUS_INSUFFICIENT_RESOURCES; break; }
+    }
     KeAcquireSpinLock(&gLock, &irql);
     if (!NT_SUCCESS(status) || flow->closing || item->discarded) {
         flow->failed = TRUE; ++gStatus.inject_failures; BlScheduleLocked(1);

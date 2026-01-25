@@ -63,9 +63,9 @@ impl Policy {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "command", deny_unknown_fields)]
 pub enum Action {
-    Status,
+    Status {},
     Apply { policy: Policy },
-    Pause,
+    Pause {},
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -140,5 +140,67 @@ mod tests {
         assert!(decode_request(br#"{"version":1,"action":{"command":"Pause"}}"#).is_err());
         assert!(Policy::parse(br#"{"version":2,"rules":[{"executable":"C:\\App.exe","download_kib":0,"upload_kib":0}]}"#).is_err());
         assert!(Policy::parse(br#"{"version":2,"rules":[{"executable":"C:\\App.exe","download_kib":1,"upload_kib":1,"quota":1}]}"#).is_err());
+    }
+
+    #[test]
+    fn unsafe_targets_duplicates_and_policy_bounds_are_rejected() {
+        let base = Rule {
+            executable: r"C:\App.exe".into(),
+            download_kib: 0,
+            upload_kib: 1_048_576,
+        };
+        let mut policy = Policy {
+            version: VERSION,
+            rules: vec![base.clone()],
+        };
+        assert!(policy.validate().is_ok());
+        for path in [
+            r"App.exe",
+            r"\\server\share\App.exe",
+            r"\\?\C:\App.exe",
+            r"C:\..\App.exe",
+            r"C:\App.exe:stream.exe",
+        ] {
+            policy.rules[0].executable = path.into();
+            assert!(policy.validate().is_err(), "accepted {path}");
+        }
+        policy.rules = vec![
+            base.clone(),
+            Rule {
+                executable: "c:/APP.exe".into(),
+                ..base.clone()
+            },
+        ];
+        assert!(policy.validate().is_err());
+        policy.rules = (0..32)
+            .map(|i| Rule {
+                executable: format!(r"C:\App{i}.exe"),
+                ..base.clone()
+            })
+            .collect();
+        assert!(policy.validate().is_ok());
+        policy.rules.push(base.clone());
+        assert!(policy.validate().is_err());
+        policy.rules = vec![Rule {
+            upload_kib: 1_048_577,
+            ..base
+        }];
+        assert!(policy.validate().is_err());
+    }
+
+    #[test]
+    fn envelopes_reject_unknown_duplicate_and_oversized_input() {
+        assert!(
+            decode_request(br#"{"version":2,"action":{"command":"Pause"},"extra":true}"#).is_err()
+        );
+        assert!(
+            decode_request(br#"{"version":2,"action":{"command":"Pause","extra":true}}"#).is_err()
+        );
+        assert!(
+            decode_request(br#"{"version":2,"version":2,"action":{"command":"Status"}}"#).is_err()
+        );
+        assert!(decode_request(&vec![b' '; MAX_FRAME + 1]).is_err());
+        assert!(encode(&"a".repeat(MAX_FRAME)).is_err());
+        assert!(Policy::parse(&vec![b' '; MAX_FRAME + 1]).is_err());
     }
 }
