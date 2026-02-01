@@ -2,7 +2,7 @@
 
 A Windows x64 desktop utility for explicit, per-application TCP bandwidth policies and call-friendly presets. Version 0.1.0 is an early implementation with a real SOCKS5 relay and a testable policy engine. It is independent of, and not affiliated with, NetLimiter. The implementation and interface are original.
 
-**Desktop scope:** enforcement in the portable GUI applies only to TCP connections an application sends through its loopback SOCKS5 proxy. Applications must support SOCKS5 themselves; the GUI does not change Windows proxy, firewall, or QoS settings. Separate [experimental WFP driver/service sources](backend/README.md) now implement an incoming-TCP shaping path without SOCKS. The broker builds, but the driver is uncompiled/unvalidated, not installed, and not connected to the GUI. The desktop's system-wide enforcement status remains **UNAVAILABLE**.
+**Available backend:** the portable GUI's SOCKS5 proxy paces TCP connections explicitly routed through it. Applications must support SOCKS5 themselves; ordinary launch/Save does not change Windows networking. The **System TCP (WFP)** page now controls a separately staged service through local authenticated IPC, and [experimental driver sources](backend/README.md) add upload/download pacing without SOCKS. The GUI and broker build, but the driver has not been WDK-built or validated. No service/driver is installed or automatically started; actual system TCP shaping remains unverified.
 
 ## Capabilities
 
@@ -15,7 +15,7 @@ A Windows x64 desktop utility for explicit, per-application TCP bandwidth polici
 | Weekly schedules | Selected weekdays, local times, overnight windows and all-day windows | Base caps become unlimited outside the window; call caps and quotas remain active |
 | Activity | Successfully forwarded proxy payload bytes and sampled rates; daily reserved bytes | No fabricated rates for direct traffic |
 | Windows inventory | Read-only IPv4/IPv6 TCP/UDP endpoints, PID, process path, state | No global per-process byte counters; unavailable identity is shown explicitly |
-| Experimental WFP sources | Separate Rust SCM broker and C callout driver for executable-specific incoming TCP deferral/continuation | WDK build and VM validation pending; no GUI controls, upload, UDP, quotas or schedules in this backend |
+| Experimental System TCP (WFP) | Manual GUI status, administrator-authorized Apply/Pause, Rust SCM broker and C driver sources with independent per-executable upload/download queues | Driver WDK build and end-to-end VM validation pending; TCP only, no quotas/schedules/Call mode; policy changes close tracked TCP connections |
 | Updates | Background startup check with saved opt-out; manual check; download progress; SHA-256 verification; restart/replacement helper | Repository/release may be unpublished; replacement and live network behavior require manual validation |
 
 ## Build and package
@@ -36,11 +36,13 @@ If dependencies have not already been cached, omit `-Offline` when packaging and
 2. Set download/upload caps in **KiB/s** (1024 bytes per second). Open **Quota & schedule** for a combined daily quota in **MiB** or a weekly window. Zero means unlimited. Mark background download apps for Call mode. Use **Save changes** in the persistent unsaved-changes bar.
 3. Choose **Start limiter**. In the selected application's own settings, choose SOCKS5, host `127.0.0.1`, port `1088` (or the saved port). **Connection setup** shows the details. The proxy does not autostart on launch.
 4. Route a small test transfer through it. Application rows show measured proxy rates; selecting a row shows its configured limits. Toggle **Call mode** to lower background app caps at the next payload operation.
-5. With a tray icon available, closing X hides the same window and keeps work active. Click the icon to open its short menu: Open, Start/Pause, Call mode, Settings, Quit. **Pause limiter** or **Quit** closes proxy connections. If tray creation fails, closing X exits instead of leaving an inaccessible process. Native tray/restore behavior remains pending interactive verification.
+5. With a tray icon available, closing X hides the same window and keeps work active. Click the icon to open its short menu: Open, Start/Pause, Call mode, Settings, Quit. **Pause limiter** or **Quit** closes proxy connections. An independently running WFP service remains active after GUI Quit; use its own Pause action. If tray creation fails, closing X exits instead of leaving an inaccessible process. Native tray/restore behavior remains pending interactive verification.
 
 Only SOCKS5 `CONNECT` is supported. UDP associate, BIND, QUIC, DNS-over-UDP forwarding and transparent capture are not implemented. SOCKS domain names resolve on the proxy's worker, with no TLS interception or payload inspection. Incoming proxy connections use IPv4 loopback; destination connections support IPv4 and IPv6. An application that uses separate downloader/helper executables needs a rule for each actual connecting executable. There are at most 32 concurrent proxy flows. This is a cooperative utility, not a mechanism to prevent an application from bypassing a policy.
 
 Equal schedule start/end times mean all day on the selected weekdays. End times are exclusive. For Sunday 23:00–Monday 01:00, select Sunday with `23:00` to `01:00`. Local clock/timezone changes affect calendar schedules and quota dates; pacing uses a monotonic clock.
+
+For **System TCP (WFP)**, follow the [separate build/staging/VM test instructions](docs/WFP-SETUP.md). The GUI never installs, starts or elevates the backend. **Check service** is a manual snapshot; standard users can read status, and Apply/Pause require an elevated administrator client. Apply uses saved enabled caps as an in-memory policy; restart reloads the protected service JSON. Unsupported enabled quotas/schedules and active Call mode are rejected. Pause/reapply/service stop/lease loss close tracked TCP connections. The experimental receive queue can overflow under fast senders, and whole-indication pacing can cause long delays at low caps. Read the [design limits](docs/WFP-DESIGN.md) before testing. Portable EXE updates do not update the service or driver.
 
 Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separately from the executable. Edits take effect only after a successful save. A corrupt or unsupported settings file is preserved and produces a startup error. A data-directory file lock prevents concurrent workers; a same-session named event requests that the running instance reopen its window. Call mode and the proxy start off each launch. Foreground activation, keyboard traversal and repeated hide/restore cycles still need native validation.
 
@@ -66,7 +68,9 @@ The images below are real application-generated **client-area renders with clear
 
 ![Settings screen rendered by BandwidthLimiter with artificial preview data](docs/screenshots/settings.png)
 
-To reproduce the finite five-screen capture after packaging:
+![System TCP WFP controls rendered by BandwidthLimiter with artificial connected-service data](docs/screenshots/wfp-connected.png)
+
+To reproduce the finite seven-screen capture after packaging:
 
 ```powershell
 ./scripts/render-preview.ps1
