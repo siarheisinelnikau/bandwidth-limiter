@@ -1,8 +1,8 @@
 {
-  "executable_sha256": "f0b74275564e786ef9545a2b33ed9d1ef60354d1db76f7cdaa968f914c87a7e5",
-  "pid": 3536,
-  "cpu_ms": 93.75,
-  "exit_code": 0,
   "mode": "headless fixtures; no native window",
-  "wall_ms": 277
+  "cpu_ms": 125.0,
+  "wall_ms": 438,
+  "pid": 28140,
+  "executable_sha256": "78ff5f2add96157e6193b29de981f7a5803d85842bbac1a9a24bee7c08c28387",
+  "exit_code": 0
 }

@@ -1,6 +1,6 @@
 # Verification record
 
-Session date: 2026-10-31 (Europe/Minsk). Windows x64 host, Rust 1.96.1 / Cargo 1.96.1. All repository commands used `E:/work/github/bandwidth-limiter`, a local target directory and at most two Cargo jobs. No GUI was launched.
+Session date: 2026-10-31 (Europe/Minsk). Windows x64 host, Rust 1.96.1 / Cargo 1.96.1. All repository commands used `E:/work/github/bandwidth-limiter`, a local target directory and at most two Cargo jobs. No native GUI was launched. Records below are chronological; the final WFP v2 section supersedes earlier backend scope, artifact and test counts.
 
 ## Completed checks
 
@@ -36,11 +36,11 @@ The final `./scripts/check.ps1` passed formatting, Clippy and all 13 non-socket 
 - Verify stop/close during handshake, DNS resolution, connect, rate waits and half-closed flows. Check the 32-flow bound and no accepted LAN connections. Standard DNS lookup cancellation is a known limit.
 - On disposable application copies only, test missing/unpublished releases, rate limits, TLS failures, opt-out causing zero startup requests, partial downloads, wrong hashes, wrong PE architecture, user cancellation before restart, helper readiness, replacement, non-writable directories, recovery backup and settings preservation. No updater network request, helper or executable replacement was exercised here.
 - Complete a public-distribution dependency notice bundle, signing review and real release publication via the authorized GitHub plugin when separately requested.
-- The experimental WFP receive-only component now has source; its WDK build, signing and kernel testing remain pending. See the continuation record below and `WFP-SETUP.md`.
+- The experimental WFP component now has bidirectional source; its WDK build, signing and kernel testing remain pending. See the final continuation record below and `WFP-SETUP.md`.
 
 No actual traffic was throttled and no Windows networking configuration, service, driver, device or external user file was changed in this development session.
 
-## WFP source continuation — 2026-10-31
+## Initial WFP v1 source continuation — 2026-10-31 (historical)
 
 Added an independent C callout driver, shared IOCTL/budget headers, WDK project and Rust SCM broker. The desktop application has not been connected to it; existing GUI capabilities and the earlier GUI artifact remain unchanged.
 
@@ -59,3 +59,19 @@ Kernel API research used the Microsoft sources linked in `WFP-DESIGN.md`; only t
 The desktop's renderer and layout have changed since the initial build record above. Current code uses egui CPU rasterization and Win32 GDI presentation, without eframe/OpenGL/wgpu. Application selection/editing, Connections and Settings are separated; a tray menu and named-event reopening path were added. None of the native window/tray paths was launched. The previous GUI artifact has been replaced by a freshly packaged `dist/BandwidthLimiter-v0.1.0.exe` (7,389,184 bytes) and matching SHA256SUMS.
 
 Formatting, Clippy, 13 library tests and three scheduler/raster tests passed (16 passed, two socket tests ignored). The packaged executable then ran only its finite headless fixture branch, producing actual client-area PNGs without a native window, worker, update request or user settings. All five final PNGs were inspected and the main/settings images are now embedded in the README. The earlier screenshot deferral is superseded **only for these application-rendered client areas**; OS chrome, tray, input and normal runtime performance remain unverified. PE inspection found AMD64 GUI subsystem and no OpenGL/D3D/DXGI/VCRUNTIME/MSVCP imports. Full evidence and the incomplete native runtime gate are recorded in [UI-VERIFICATION.md](UI-VERIFICATION.md).
+
+## WFP v2 GUI control and upload continuation — 2026-10-31 (current)
+
+The GUI now has manual System TCP (WFP) service controls. GUI/service share a strict version 2 policy and framed local pipe protocol, overlapped cancellation/deadlines, SCM server PID verification and token-based administrator authorization for mutations. Apply is in-memory; startup still uses protected JSON. The driver source now clones/absorbs/paces/injects both stream directions with separate shared budgets. Kernel ABI v2 is 528-byte configuration / 96-byte status; mixed versions are incompatible. Pause/reapply/stop/lease loss close tracked connections before removing filters.
+
+Completed checks after the final source changes:
+
+- `scripts/check.ps1`: formatting and Clippy with `-D warnings` passed; **14 library + 3 renderer/scheduler tests passed**, two socket tests remain ignored. The added GUI fixture refuses unsupported WFP quotas/schedules/Call mode instead of sending a partial policy.
+- `scripts/check-wfp.ps1`: control and service formatting/Clippy passed; **3 shared control + 4 service tests passed**. They cover strict envelope/size/rate/rule/path validation, upload-to-kernel conversion, C/Rust layouts, synthetic SIDs and a fake controller that rejects unauthorized changes and invalid policies before mutation. A new regression test exposed Serde ignoring extra fields on unit commands; commands now use empty struct variants, and the test passes. These tests create no real pipe and do not impersonate an actual client.
+- The freestanding shared C fixture compiled with existing MSVC `/W4 /WX` and passed: eight artificial flows share independent 4 KiB/s download and 8 KiB/s upload budgets, yielding 40/80 KiB in ten seconds. It also checks whole-64-KiB admission at 1 KiB/s after 64 seconds, overflow bounds and v2 ABI. This compiles **only the shared headers**, not `driver.c`.
+- `scripts/package.ps1 -Offline` and `scripts/build-wfp.ps1 -Offline` passed. Current local artifacts are `dist/BandwidthLimiter-v0.1.0.exe` (7,481,856 bytes) and `dist/wfp/BandwidthLimiterService.exe` (576,000 bytes), with SHA256SUMS. The GUI's static PE inspection again found AMD64 / Windows GUI subsystem and no OpenGL/D3D/DXGI/VCRUNTIME/MSVCP imports.
+- Seven finite actual application-generated fixture renders were inspected, including artificial WFP connected/unavailable states. The current GUI hash matches [invocation metadata](screenshots/invocation.json); all images/manifests were refreshed in `docs/screenshots`. Capture used no native window, ordinary workers, normal settings, service connection, inventory or update request. It exited successfully; native idle/hidden/input/tray performance remains unmeasured.
+
+The WDK kernel header remains absent. The driver was **not compiled, signed, loaded or tested**, and no `.sys` is supplied as verified. No real named-pipe exchange, SCM identity/authentication test, driver device access, BFE/filter mutation or upload/download measurement occurred. Compilation and fake authorization fixtures do not establish the real privileged boundary. The broker executable was not started. Nothing was installed or published; all changes are local commits and computer use was not used.
+
+Material experimental limits: 64 KiB whole-indication pacing can delay low-rate delivery; receive OOB pacing does not suppress ACKs and can overflow the bounded queue; oversize/resource/injection failures close affected tracked TCP connections; failure to allocate a flow context before association leaves that flow unshaped and increments a counter. Required WDK, Driver Verifier, IPC and VM traffic/lifecycle checks are listed in [WFP-DESIGN.md](WFP-DESIGN.md). [WFP-SETUP.md](WFP-SETUP.md) contains manual future VM staging/recovery commands; none were executed.
