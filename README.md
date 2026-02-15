@@ -4,6 +4,8 @@ A Windows x64 desktop utility for explicit, per-application TCP bandwidth polici
 
 **Available backend:** the portable GUI's SOCKS5 proxy paces TCP connections explicitly routed through it. Applications must support SOCKS5 themselves; ordinary launch/Save does not change Windows networking. The **System TCP (WFP)** page now controls a separately staged service through local authenticated IPC, and [experimental driver sources](backend/README.md) add upload/download pacing without SOCKS. The GUI and broker build, but the driver has not been WDK-built or validated. No service/driver is installed or automatically started; actual system TCP shaping remains unverified.
 
+**Backend direction:** the project owner does not want to maintain a Microsoft hardware-program/signing account. The preferred next candidate is an unmodified, officially signed WinDivert runtime with pacing in our service; Windows QoS is an upload-only alternative. This is [research and a migration proposal](docs/BACKEND-ALTERNATIVES.md), not an implemented replacement. Existing WFP sources remain experimental reference code.
+
 ## Capabilities
 
 | Area | Implemented behavior | Boundary |
