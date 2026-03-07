@@ -14,7 +14,7 @@ impl Tray {
     pub fn new(events: EventLoopProxy<Wake>) -> Result<Self, String> {
         let menu = Menu::new();
         let open = MenuItem::with_id("open", "Open BandwidthLimiter", true, None);
-        let proxy = MenuItem::with_id("proxy", "Start limiter", true, None);
+        let proxy = MenuItem::with_id("proxy", "Start proxy", true, None);
         let call = CheckMenuItem::with_id("call", "Call mode", true, false, None);
         let settings = MenuItem::with_id("settings", "Settings", true, None);
         let quit = MenuItem::with_id("quit", "Quit and stop limiting", true, None);
@@ -41,7 +41,7 @@ impl Tray {
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(true)
-            .with_tooltip("BandwidthLimiter · paused")
+            .with_tooltip("BandwidthLimiter · proxy paused")
             .with_icon(icon)
             .build()
             .map_err(|e| e.to_string())?;
@@ -61,13 +61,13 @@ impl Tray {
         }
         self.last = Some((running, call));
         self.proxy.set_text(if running {
-            "Pause limiter"
+            "Pause proxy"
         } else {
-            "Start limiter"
+            "Start proxy"
         });
         self.call.set_checked(call);
         let _ = self._icon.set_tooltip(Some(format!(
-            "BandwidthLimiter · {}{}",
+            "BandwidthLimiter · proxy {}{}",
             if running { "running" } else { "paused" },
             if call { " · Call mode" } else { "" }
         )));

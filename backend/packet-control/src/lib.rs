@@ -130,9 +130,38 @@ pub fn decode_request(payload: &[u8]) -> Result<Request, String> {
     }
     Ok(request)
 }
+pub fn decode_response(payload: &[u8]) -> Result<Response, String> {
+    if payload.len() > MAX_FRAME {
+        return Err("Control response exceeds 128 KiB".into());
+    }
+    let response: Response = serde_json::from_slice(payload).map_err(|e| e.to_string())?;
+    if response.version != VERSION || response.backend != BACKEND {
+        return Err(
+            "Incompatible System TCP service/backend; the legacy WFP service is not supported"
+                .into(),
+        );
+    }
+    Ok(response)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn response_identity_prevents_legacy_or_wrong_backend_use() {
+        let mut response = Response {
+            version: VERSION,
+            backend: BACKEND.into(),
+            can_configure: false,
+            status: Some(Snapshot::default()),
+            error: None,
+        };
+        assert!(decode_response(&encode(&response).unwrap()[4..]).is_ok());
+        response.version = 2;
+        assert!(decode_response(&encode(&response).unwrap()[4..]).is_err());
+        response.version = VERSION;
+        response.backend = "legacy-wfp".into();
+        assert!(decode_response(&encode(&response).unwrap()[4..]).is_err());
+    }
     #[test]
     fn strict_bidirectional_policy_and_frames() {
         let p = Policy::parse(br#"{"version":3,"rules":[{"executable":"C:\\App.exe","download_kib":0,"upload_kib":64}]}"#).unwrap();

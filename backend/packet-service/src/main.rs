@@ -9,17 +9,19 @@ mod packet;
 mod security;
 mod session;
 mod shaper;
+use bandwidth_limiter_packet_control::transport::Handle;
 use bandwidth_limiter_packet_control::{Policy, SERVICE, Snapshot};
 use std::{
     cell::RefCell,
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
 };
 use windows_sys::Win32::System::Services::*;
+use windows_sys::Win32::{Foundation::*, System::Threading::*};
 static STOP: AtomicBool = AtomicBool::new(false);
+static STOP_EVENT: OnceLock<Handle> = OnceLock::new();
 struct Backend {
     session: RefCell<Option<session::Session>>,
     status: session::Shared,
@@ -91,6 +93,9 @@ fn report(handle: SERVICE_STATUS_HANDLE, state: u32, error: bool) {
 unsafe extern "system" fn control(code: u32) {
     if code == SERVICE_CONTROL_STOP || code == SERVICE_CONTROL_SHUTDOWN {
         STOP.store(true, Ordering::Release);
+        if let Some(event) = STOP_EVENT.get() {
+            event.signal();
+        }
     }
 }
 fn run(handle: SERVICE_STATUS_HANDLE) -> Result<(), String> {
@@ -98,17 +103,31 @@ fn run(handle: SERVICE_STATUS_HANDLE) -> Result<(), String> {
     let backend = Backend::new();
     // Starting/status do not load a DLL, open a driver, install or capture anything.
     let server = ipc::Server::new()?;
+    let stopped = STOP_EVENT.get().ok_or("Stop event was not initialized")?;
+    let events = [stopped.0, server.ready.0];
     report(handle, SERVICE_RUNNING, false);
     let result = (|| {
         while !STOP.load(Ordering::Acquire) {
-            match server.incoming.recv_timeout(Duration::from_millis(500)) {
-                Ok(message) => {
-                    let response =
-                        controller::execute(&backend, message.request, message.administrator);
-                    let _ = message.reply.try_send(response);
+            if unsafe { WaitForMultipleObjects(2, events.as_ptr(), 0, INFINITE) } == WAIT_FAILED {
+                return Err(std::io::Error::last_os_error().to_string());
+            }
+            if STOP.load(Ordering::Acquire) {
+                break;
+            }
+            // Reset before draining the channel, so a later send cannot lose its wakeup.
+            unsafe {
+                ResetEvent(server.ready.0);
+            }
+            loop {
+                match server.incoming.try_recv() {
+                    Ok(message) => {
+                        let response =
+                            controller::execute(&backend, message.request, message.administrator);
+                        let _ = message.reply.try_send(response);
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => break,
+                    Err(_) => return Err("Control pipe worker stopped".into()),
                 }
-                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
-                Err(_) => return Err("Control pipe worker stopped".into()),
             }
         }
         Ok(())
@@ -119,6 +138,12 @@ fn run(handle: SERVICE_STATUS_HANDLE) -> Result<(), String> {
     result.and(paused)
 }
 unsafe extern "system" fn service_main(_: u32, _: *mut *mut u16) {
+    let Ok(event) = Handle::event() else {
+        return;
+    };
+    if STOP_EVENT.set(event).is_err() {
+        return;
+    }
     let name: Vec<_> = SERVICE.encode_utf16().chain(Some(0)).collect();
     let handle = unsafe { RegisterServiceCtrlHandlerW(name.as_ptr(), Some(control)) };
     if handle.is_null() {

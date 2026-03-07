@@ -267,10 +267,7 @@ pub fn exchange(action: Action) -> Result<Response, String> {
         &stop,
     )?;
     let payload = pipe.read(&stop, Duration::from_secs(38))?;
-    let response: Response = serde_json::from_slice(&payload).map_err(|e| e.to_string())?;
-    if response.version != VERSION || response.backend != crate::BACKEND {
-        return Err("Incompatible System TCP service protocol".into());
-    }
+    let response = crate::decode_response(&payload)?;
     // Acknowledge the response before the server disconnects its buffered pipe.
     pipe.write(&crate::encode(&true)?, &stop)?;
     Ok(response)
