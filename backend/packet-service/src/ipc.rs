@@ -19,6 +19,7 @@ pub struct Server {
     stop: Arc<Handle>,
     worker: Option<JoinHandle<()>>,
     pub incoming: Receiver<Incoming>,
+    pub ready: Arc<Handle>,
 }
 impl Server {
     pub fn new() -> Result<Self, String> {
@@ -26,6 +27,8 @@ impl Server {
         let stop = Arc::new(Handle::event()?);
         let worker_stop = stop.clone();
         let (tx, incoming) = mpsc::sync_channel(4);
+        let ready = Arc::new(Handle::event()?);
+        let notification = ready.clone();
         let worker = thread::Builder::new().name("packet-control-pipe".into()).spawn(move || {
             while !worker_stop.signaled() {
                 if pipe.accept(&worker_stop).is_err() { break; }
@@ -36,6 +39,7 @@ impl Server {
                     if !matches!(request.action, Action::Status {}) && !administrator { return Err("Administrator authorization is required to change System TCP limits. No elevation is started automatically.".into()); }
                     let (reply, result) = mpsc::sync_channel(1);
                     tx.try_send(Incoming { request, administrator, reply }).map_err(|_| "System TCP controller is busy".to_string())?;
+                    notification.signal();
                     let deadline = Instant::now() + Duration::from_secs(35);
                     loop { match result.recv_timeout(Duration::from_millis(100)) {
                         Ok(response) => return Ok(response),
@@ -49,11 +53,14 @@ impl Server {
                     && pipe.write(&frame, &worker_stop).is_ok() { let _ = pipe.read(&worker_stop, Duration::from_secs(2)); }
                 pipe.disconnect();
             }
+            drop(tx);
+            notification.signal();
         }).map_err(|e| e.to_string())?;
         Ok(Self {
             stop,
             worker: Some(worker),
             incoming,
+            ready,
         })
     }
 }

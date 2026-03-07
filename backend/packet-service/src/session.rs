@@ -100,6 +100,11 @@ fn run(
         .submit()
         .map_err(|e| format!("NETWORK receive failed ({e})"))?;
     let start = Instant::now();
+    let paths: Vec<_> = policy
+        .rules
+        .iter()
+        .map(|r| r.executable.replace('/', "\\").to_lowercase())
+        .collect();
     let mut last_publish = Instant::now();
     let mut shape = Shaper::new(&policy);
     let mut last_stats = shape.stats.clone();
@@ -122,9 +127,7 @@ fn run(
                         shape.remove(key(address), Some(f.endpoint));
                     } else if address.event() == 1
                         && let Some(path) = native::process_identity(f.pid, address.timestamp)
-                        && let Some(slot) = policy.rules.iter().position(|r| {
-                            r.executable.replace('/', "\\").to_lowercase() == path.to_lowercase()
-                        })
+                        && let Some(slot) = paths.iter().position(|p| *p == path.to_lowercase())
                     {
                         shape.observe(key(address), f.endpoint, address.timestamp, slot);
                     }

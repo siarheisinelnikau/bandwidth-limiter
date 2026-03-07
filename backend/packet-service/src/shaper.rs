@@ -337,4 +337,50 @@ mod tests {
         assert_eq!(s.pop_ready(25_000, false).unwrap().payload, 0);
         assert!(s.wait_us(25_000).is_none());
     }
+    #[test]
+    fn total_packet_byte_and_flow_limits_stay_bounded() {
+        let mut s = Shaper::new(&policy());
+        for port in 1000..1033 {
+            register(&mut s, port, u64::from(port));
+            for n in 0..128 {
+                s.accept(pkt(1, true, port, n), 0);
+            }
+        }
+        assert_eq!(s.stats.queued_packets, MAX_PACKETS as u32);
+        assert_eq!(s.stats.dropped_packets, 128);
+        s.discard_remaining();
+        for port in 1000..1002 {
+            register(&mut s, port, u64::from(port));
+            for n in 0..100 {
+                s.accept(pkt(60000, true, port, n), 0);
+            }
+        }
+        assert!(s.stats.queued_bytes <= MAX_BYTES as u64);
+        assert_eq!(s.stats.queued_packets, 139);
+        assert_eq!(s.stats.queued_bytes, 139 * 60040);
+        s.discard_remaining();
+        for port in 1000..1600 {
+            register(&mut s, port, u64::from(port));
+        }
+        assert_eq!(s.stats.flows, MAX_FLOWS as u32);
+    }
+    #[test]
+    fn low_rate_large_packets_burst_bound_and_failed_send_accounting() {
+        let mut policy = policy();
+        policy.rules[0].upload_kib = 1;
+        let mut s = Shaper::new(&policy);
+        register(&mut s, 1000, 1);
+        s.accept(pkt(64000, true, 1000, 0), 0);
+        assert!(s.pop_ready(62_499_999, false).is_none());
+        let p = s.pop_ready(62_500_000, false).unwrap();
+        s.sent(&p, false);
+        assert_eq!(s.stats.upload_submitted, 0);
+        assert_eq!(s.stats.send_errors, 1);
+        assert_eq!(s.stats.dropped_packets, 1);
+        s.accept(pkt(64000, true, 1000, 1), 1_000_000_000);
+        let p = s.pop_ready(1_000_000_000, false).unwrap();
+        s.sent(&p, true);
+        s.accept(pkt(64000, true, 1000, 2), 1_000_000_000);
+        assert!(s.pop_ready(1_000_000_000, false).is_none());
+    }
 }

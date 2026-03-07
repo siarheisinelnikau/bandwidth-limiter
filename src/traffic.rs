@@ -1,6 +1,6 @@
 //! Explicit service control; importing or constructing the UI never probes/starts a service.
 use crate::model::Config;
-use bandwidth_limiter_control::{Action, Policy, Response, Rule, VERSION};
+use bandwidth_limiter_packet_control::{Action, Policy, Response, Rule, VERSION};
 #[derive(Clone)]
 pub enum Command {
     Refresh,
@@ -16,12 +16,12 @@ pub struct State {
 pub fn policy(config: &Config, call_mode: bool) -> Result<Policy, String> {
     config.validate()?;
     if call_mode {
-        return Err("Turn off proxy Call mode before applying a static WFP policy. WFP Call mode is not implemented.".into());
+        return Err("Turn off proxy Call mode before applying static System TCP limits. System TCP Call mode is not implemented.".into());
     }
     let mut rules = vec![];
     for r in config.rules.iter().filter(|r| r.enabled) {
         if r.daily_quota_mib != 0 || r.schedule.is_some() {
-            return Err("WFP does not support quotas or schedules yet. Remove them from enabled rules before applying; the current service policy was not changed.".into());
+            return Err("System TCP does not support quotas or schedules yet. Remove them from enabled rules before applying; the current service policy was not changed.".into());
         }
         if r.download_kib != 0 || r.upload_kib != 0 {
             rules.push(Rule {

@@ -7,7 +7,7 @@ license = "MIT"
 description = "Explicit per-application TCP shaping and network policy workbench for Windows"
 
 [dependencies]
-bandwidth-limiter-control = { path = "backend/control" }
+bandwidth-limiter-packet-control = { path = "backend/packet-control" }
 chrono = { version = "0.4.45", features = ["serde"] }
 egui = "=0.33.3"
 egui-winit = { version = "=0.33.3", default-features = false, features = ["clipboard", "links", "x11", "wayland"] }

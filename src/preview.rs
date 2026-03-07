@@ -72,8 +72,24 @@ pub fn render(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
             1.0,
         ),
         ("settings", Page::Settings, false, false, 980, 720, 1.0),
-        ("wfp-unavailable", Page::Wfp, false, true, 980, 720, 1.0),
-        ("wfp-connected", Page::Wfp, false, false, 980, 720, 1.0),
+        (
+            "system-tcp-unavailable",
+            Page::SystemTcp,
+            false,
+            true,
+            980,
+            720,
+            1.0,
+        ),
+        (
+            "system-tcp-connected",
+            Page::SystemTcp,
+            false,
+            false,
+            980,
+            720,
+            1.0,
+        ),
         ("empty", Page::Applications, true, false, 980, 720, 1.0),
         ("error", Page::Applications, false, true, 980, 720, 1.0),
         (
@@ -93,15 +109,15 @@ pub fn render(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
         crate::design::apply(&ctx);
         ctx.set_pixels_per_point(scale);
         let (mut config, view) = fixture(empty);
-        if page == Page::Wfp {
+        if page == Page::SystemTcp {
             for rule in &mut config.rules {
                 rule.daily_quota_mib = 0;
                 rule.schedule = None;
             }
         }
-        let mut app = App::fixture(config, view, page, error && page != Page::Wfp);
-        if page == Page::Wfp {
-            app.wfp_fixture(!error);
+        let mut app = App::fixture(config, view, page, error && page != Page::SystemTcp);
+        if page == Page::SystemTcp {
+            app.system_tcp_fixture(!error);
         }
         let mut paint = Paint::new();
         // Two bounded passes allow font texture creation and initial layout to settle.
