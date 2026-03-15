@@ -1,5 +1,7 @@
 # Experimental WFP v2 design
 
+**Legacy reference:** the current GUI/service path uses WinDivert (see `docs/WINDIVERT-DESIGN.md` in the repository). This document describes the retained earlier custom-driver implementation and its former GUI integration, not the current control endpoint.
+
 ## Scope and verification boundary
 
 Version 2 adds GUI-to-service control and independent TCP upload/download budgets. GUI, shared control library and broker compile on Windows x64; their non-network fixtures pass. The kernel source has **not** been WDK-built, signed, loaded or verified. Nothing here certifies production shaping or driver safety. Windows 10 2004+ / Windows 11 x64 remains the intended driver target. UDP, quota, schedule and WFP Call mode are not implemented; unsupported GUI rules are rejected before IPC.

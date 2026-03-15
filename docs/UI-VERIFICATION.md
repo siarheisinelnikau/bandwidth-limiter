@@ -1,5 +1,15 @@
 # Design and rendering verification — 2026-10-31
 
+## WinDivert migration — 2026-11-01 (current source, visual review deferred)
+
+Applied product-design/rust-performance/github-release-conventions to the source changes. The System TCP page now identifies WinDivert, distinguishes proxy actions, uses new v3 status/authorization data, and offers Check service / Apply saved TCP limits / Pause System TCP. It explains new-flow attribution, unmatched passes, transient policy, restart-paused behavior and queue release without claiming WFP stream abort semantics. The existing palette/type/spacing/scroll layout and CPU/GDI host remain. New service commands run on a blocked worker; no automatic probing/polling was introduced.
+
+The current user explicitly prohibited GUI launch. No ordinary launch, self-capture, screenshots or computer use occurred, so **current Applications/Settings/System TCP layout, native tray behavior and runtime rendering/load remain unverified**. Preview fixtures were updated in source to new connected/unavailable System TCP states for later use, but not executed. Images/manifests under `screenshots/` belong to the prior GUI and their hash does not identify the current executable. README images are explicitly marked historical; refreshed current screenshots are outstanding.
+
+Formatting, Clippy and 17 GUI/library/scheduler/raster tests passed; two socket tests remain ignored. This compiles the current widgets and checks isolated rendering/scheduling logic, not their actual new page layout or native idle/hidden behavior. The WinDivert service/control fixtures and build evidence are in [VERIFICATION.md](VERIFICATION.md) and [WINDIVERT-DESIGN.md](WINDIVERT-DESIGN.md).
+
+## Historical CPU/WFP UI evidence — 2026-10-31
+
 Applied `product-design` and `rust-performance`, including their self-capture and pre-launch rendering/load guidance. No computer use or ordinary native GUI launch was performed. Source work and finite headless rendering were used to respect the session's desktop restrictions.
 
 ## Workflow and implementation

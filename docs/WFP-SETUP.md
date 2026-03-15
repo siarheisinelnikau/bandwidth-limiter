@@ -1,5 +1,7 @@
 # Build and manually stage the experimental WFP backend
 
+**Legacy procedure:** current GUI controls target the new WinDivert packet service (see `docs/WINDIVERT-SETUP.md` in the repository), not this v2 endpoint. Retain this document for safe recovery/drain/quiesce/unload of old test VMs; its GUI section describes the earlier GUI version. Do not run both shapers on the same traffic.
+
 These are **instructions for later review in a disposable Windows VM**, not steps executed by the development agent. The driver is source-only and uncompiled in the recorded session. Do not install it on a production machine. The commands below create/load services and affect selected TCP traffic when deliberately run by a VM administrator.
 
 ## Build without installation

@@ -31,6 +31,13 @@ jobs:
         run: |
           ./scripts/check-wfp.ps1
           ./scripts/build-wfp.ps1 -Offline
+      - name: Resolve WinDivert packet service dependencies
+        run: cargo fetch --locked --manifest-path backend/packet-service/Cargo.toml
+      - name: Check and build WinDivert user-mode components without loading runtime
+        shell: pwsh
+        run: |
+          ./scripts/check-windivert.ps1
+          ./scripts/build-windivert.ps1 -Offline
       - uses: actions/upload-artifact@v4
         with:
           name: BandwidthLimiter-windows-x64
