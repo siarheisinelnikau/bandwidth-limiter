@@ -2,9 +2,9 @@
 
 A Windows x64 desktop utility for explicit, per-application TCP bandwidth policies and call-friendly presets. Version 0.1.0 is an early implementation with a real SOCKS5 relay and a testable policy engine. It is independent of, and not affiliated with, NetLimiter. The implementation and interface are original.
 
-**Available backend:** the portable GUI's SOCKS5 proxy paces TCP connections explicitly routed through it. Applications must support SOCKS5 themselves; ordinary launch/Save does not change Windows networking. The **System TCP (WFP)** page now controls a separately staged service through local authenticated IPC, and [experimental driver sources](backend/README.md) add upload/download pacing without SOCKS. The GUI and broker build, but the driver has not been WDK-built or validated. No service/driver is installed or automatically started; actual system TCP shaping remains unverified.
+**Backends:** the portable SOCKS5 proxy paces TCP connections explicitly routed through it. **System TCP (WinDivert)** now controls a separate Rust service that captures, queues and reinjects selected applications' TCP payload in both directions through an unchanged upstream WinDivert runtime. GUI/service/control compile and fixture tests pass; real driver loading, IPC and traffic behavior remain unverified. No service/driver is installed or started by ordinary GUI launch/Save. The packet service starts paused and its explicit Apply opens only an already prepared driver with `NO_INSTALL`.
 
-**Backend direction:** the project owner does not want to maintain a Microsoft hardware-program/signing account. The preferred next candidate is an unmodified, officially signed WinDivert runtime with pacing in our service; Windows QoS is an upload-only alternative. This is [research and a migration proposal](docs/BACKEND-ALTERNATIVES.md), not an implemented replacement. Existing WFP sources remain experimental reference code.
+The WinDivert path avoids building/signing our own kernel driver or operating a hardware-program account, conditional on the reviewed upstream runtime's trust/compatibility and distribution terms. `WinDivert.dll`/`WinDivert64.sys` are external prerequisites, not included in the local build. See [build and manual VM staging](docs/WINDIVERT-SETUP.md), [implemented design and limits](docs/WINDIVERT-DESIGN.md), and the earlier [alternatives research](docs/BACKEND-ALTERNATIVES.md). The former custom WFP v2 backend remains experimental reference source; the new GUI cannot control its old endpoint.
 
 ## Capabilities
 
@@ -17,7 +17,7 @@ A Windows x64 desktop utility for explicit, per-application TCP bandwidth polici
 | Weekly schedules | Selected weekdays, local times, overnight windows and all-day windows | Base caps become unlimited outside the window; call caps and quotas remain active |
 | Activity | Successfully forwarded proxy payload bytes and sampled rates; daily reserved bytes | No fabricated rates for direct traffic |
 | Windows inventory | Read-only IPv4/IPv6 TCP/UDP endpoints, PID, process path, state | No global per-process byte counters; unavailable identity is shown explicitly |
-| Experimental System TCP (WFP) | Manual GUI status, administrator-authorized Apply/Pause, Rust SCM broker and C driver sources with independent per-executable upload/download queues | Driver WDK build and end-to-end VM validation pending; TCP only, no quotas/schedules/Call mode; policy changes close tracked TCP connections |
+| System TCP (WinDivert) | Manual GUI status, administrator-authorized Apply/Pause, Rust service with independent shared upload/download budgets and bounded FIFO queues | Runtime/VM validation pending; newly observed attributable TCP only; no quotas/schedules/Call mode; overflow can drop packets, Pause/reapply can release a burst |
 | Updates | Background startup check with saved opt-out; manual check; download progress; SHA-256 verification; restart/replacement helper | Repository/release may be unpublished; replacement and live network behavior require manual validation |
 
 ## Build and package
@@ -28,6 +28,8 @@ Requires Windows 10/11 x64, Rust 1.92+ with the `x86_64-pc-windows-msvc` toolcha
 cargo build --locked -j 2
 ./scripts/check.ps1
 ./scripts/package.ps1 -Offline
+./scripts/check-windivert.ps1
+./scripts/build-windivert.ps1 -Offline
 ```
 
 If dependencies have not already been cached, omit `-Offline` when packaging and run `cargo fetch --locked` before the offline checks. Cargo is restricted to two jobs and the repository-local `target` directory. The package script creates `dist/BandwidthLimiter-v0.1.0.exe` and `dist/SHA256SUMS`. It does not launch the executable or publish anything. The Windows release statically links the CRT where supported; all fonts are embedded.
@@ -36,15 +38,15 @@ If dependencies have not already been cached, omit `-Offline` when packaging and
 
 1. In **Applications**, choose **Add application** and enter the full EXE path, or choose **Connections → Refresh connections → Add rule**.
 2. Set download/upload caps in **KiB/s** (1024 bytes per second). Open **Quota & schedule** for a combined daily quota in **MiB** or a weekly window. Zero means unlimited. Mark background download apps for Call mode. Use **Save changes** in the persistent unsaved-changes bar.
-3. Choose **Start limiter**. In the selected application's own settings, choose SOCKS5, host `127.0.0.1`, port `1088` (or the saved port). **Connection setup** shows the details. The proxy does not autostart on launch.
+3. For the proxy backend choose **Start proxy**. In the selected application's own settings, choose SOCKS5, host `127.0.0.1`, port `1088` (or the saved port). **Connection setup** shows the details. The proxy does not autostart on launch. System TCP uses its separate controls described below.
 4. Route a small test transfer through it. Application rows show measured proxy rates; selecting a row shows its configured limits. Toggle **Call mode** to lower background app caps at the next payload operation.
-5. With a tray icon available, closing X hides the same window and keeps work active. Click the icon to open its short menu: Open, Start/Pause, Call mode, Settings, Quit. **Pause limiter** or **Quit** closes proxy connections. An independently running WFP service remains active after GUI Quit; use its own Pause action. If tray creation fails, closing X exits instead of leaving an inaccessible process. Native tray/restore behavior remains pending interactive verification.
+5. With a tray icon available, closing X hides the same window and keeps work active. Click the icon to open its short menu: Open, Start/Pause proxy, Call mode, Settings, Quit. **Pause proxy** or **Quit** closes proxy connections. An independently running System TCP service remains active after GUI Quit; use its own Pause action. If tray creation fails, closing X exits instead of leaving an inaccessible process. Native tray/restore behavior remains pending interactive verification.
 
 Only SOCKS5 `CONNECT` is supported. UDP associate, BIND, QUIC, DNS-over-UDP forwarding and transparent capture are not implemented. SOCKS domain names resolve on the proxy's worker, with no TLS interception or payload inspection. Incoming proxy connections use IPv4 loopback; destination connections support IPv4 and IPv6. An application that uses separate downloader/helper executables needs a rule for each actual connecting executable. There are at most 32 concurrent proxy flows. This is a cooperative utility, not a mechanism to prevent an application from bypassing a policy.
 
 Equal schedule start/end times mean all day on the selected weekdays. End times are exclusive. For Sunday 23:00–Monday 01:00, select Sunday with `23:00` to `01:00`. Local clock/timezone changes affect calendar schedules and quota dates; pacing uses a monotonic clock.
 
-For **System TCP (WFP)**, follow the [separate build/staging/VM test instructions](docs/WFP-SETUP.md). The GUI never installs, starts or elevates the backend. **Check service** is a manual snapshot; standard users can read status, and Apply/Pause require an elevated administrator client. Apply uses saved enabled caps as an in-memory policy; restart reloads the protected service JSON. Unsupported enabled quotas/schedules and active Call mode are rejected. Pause/reapply/service stop/lease loss close tracked TCP connections. The experimental receive queue can overflow under fast senders, and whole-indication pacing can cause long delays at low caps. Read the [design limits](docs/WFP-DESIGN.md) before testing. Portable EXE updates do not update the service or driver.
+For **System TCP (WinDivert)**, follow the [separate VM staging instructions](docs/WINDIVERT-SETUP.md). **Check service** reads a manual snapshot; standard users are read-only and Apply/Pause require an elevated administrator client. Save EXE caps, choose **Apply saved TCP limits**, then reconnect applications so the service can observe their new flows. Old/unidentified/unmatched connections, loopback, UDP/QUIC and unsupported packet forms are not capped. Enabled quotas/schedules and active Call mode are refused together. **Pause System TCP** releases queued traffic without deliberately aborting TCP; bursts, reordering, drops and retransmissions remain possible. A service restart begins paused. Counters include retransmitted TCP payload and reset on Apply; they are not delivered-byte or wire-rate measurements. Read the [queue/attribution limits](docs/WINDIVERT-DESIGN.md). Portable EXE updates do not update the service or external runtime.
 
 Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separately from the executable. Edits take effect only after a successful save. A corrupt or unsupported settings file is preserved and produces a startup error. A data-directory file lock prevents concurrent workers; a same-session named event requests that the running instance reopen its window. Call mode and the proxy start off each launch. Foreground activation, keyboard traversal and repeated hide/restore cycles still need native validation.
 
@@ -60,19 +62,17 @@ The planned canonical repository is [siarheisinelnikau/bandwidth-limiter](https:
 
 See [verification status](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [Windows API constraints](docs/WINDOWS-BACKEND.md), and [draft release notes](docs/RELEASE-v0.1.0.md).
 
-For the new backend see [WFP source status](backend/README.md), [design/lifecycle review](docs/WFP-DESIGN.md), and [manual VM build/install/removal instructions](docs/WFP-SETUP.md). `scripts/build-wfp.ps1` only builds; it does not install or launch anything. Driver/service updates are separate from portable GUI updates.
+For System TCP see [backend status](backend/README.md), [WinDivert design](docs/WINDIVERT-DESIGN.md), and [manual VM build/staging/removal instructions](docs/WINDIVERT-SETUP.md). `scripts/build-windivert.ps1` builds only the user-mode broker. Legacy [custom WFP notes](docs/WFP-DESIGN.md) and [safe drain/unload instructions](docs/WFP-SETUP.md) remain for old test VMs. No script migrates a running backend automatically.
 
 The interface uses **egui CPU rasterization + softbuffer's Win32 GDI presentation**. eframe, OpenGL and wgpu are removed. Idle rendering is event-driven; hidden/minimized windows skip layout, rasterization and presentation in the host. These are source-level behavior and unit checks, not measured native idle/hidden performance. The full runtime gate remains incomplete because ordinary GUI launches and computer use were not performed.
 
-The images below are real application-generated **client-area renders with clearly marked artificial preview data**, produced by the same UI components and CPU rasterizer without creating a native window. No desktop screenshot, user process inventory or network access was used. They verify static layout, not native title bars, tray clicks, performance or actual shaping.
+The images below are real application-generated **historical pre-WinDivert client-area renders with clearly marked artificial preview data**, produced by the UI and CPU rasterizer without creating a native window. Their old WFP tab/labels do not represent the current WinDivert controls. The latest no-GUI instruction was honored, including no self-capture; refreshed current main/settings/System TCP images and visual QA are pending. Existing images are retained as historical evidence, not current layout verification.
 
-![Applications screen rendered by BandwidthLimiter with artificial preview data](docs/screenshots/applications.png)
+![Historical pre-WinDivert Applications render with artificial preview data](docs/screenshots/applications.png)
 
-![Settings screen rendered by BandwidthLimiter with artificial preview data](docs/screenshots/settings.png)
+![Historical pre-WinDivert Settings render with artificial preview data](docs/screenshots/settings.png)
 
-![System TCP WFP controls rendered by BandwidthLimiter with artificial connected-service data](docs/screenshots/wfp-connected.png)
-
-To reproduce the finite seven-screen capture after packaging:
+For a later separately permitted finite seven-screen capture after packaging (not run in the WinDivert migration):
 
 ```powershell
 ./scripts/render-preview.ps1

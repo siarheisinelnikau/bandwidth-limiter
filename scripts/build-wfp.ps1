@@ -9,7 +9,7 @@ try {
     New-Item -ItemType Directory -Path dist/wfp -Force | Out-Null
     Copy-Item -LiteralPath 'target/x86_64-pc-windows-msvc/release/bandwidth-limiter-service.exe' -Destination 'dist/wfp/BandwidthLimiterService.exe'
     Copy-Item -LiteralPath 'backend/policy.example.json' -Destination 'dist/wfp/policy.example.json'
-    $artifactReadme = (Get-Content -LiteralPath 'backend/README.md' -Raw).Replace('(../docs/WFP-SETUP.md)', '(WFP-SETUP.md)').Replace('(../docs/WFP-DESIGN.md)', '(WFP-DESIGN.md)')
+    $artifactReadme = "# Legacy experimental WFP v2 sources`n`nThis broker belongs to the retained custom-driver backend. The current GUI uses a separate WinDivert packet service and cannot control this endpoint. See [WFP VM setup/recovery](WFP-SETUP.md) and [WFP lifecycle](WFP-DESIGN.md). No driver/service was installed or started by this build.`n"
     [System.IO.File]::WriteAllText((Join-Path (Get-Location) 'dist/wfp/README.md'), $artifactReadme, [System.Text.UTF8Encoding]::new($false))
     Copy-Item -LiteralPath 'docs/WFP-SETUP.md' -Destination 'dist/wfp/WFP-SETUP.md'
     Copy-Item -LiteralPath 'docs/WFP-DESIGN.md' -Destination 'dist/wfp/WFP-DESIGN.md'

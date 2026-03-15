@@ -2,6 +2,8 @@
 
 Research date: 2026-10-31. The user does not want to enroll in the Windows Hardware Developer Program. This rules out our own release-signed kernel driver as the planned distribution path. The existing WFP v2 code remains an experimental reference, not a shipping prerequisite. This note records research and a proposed migration; no alternative backend is implemented or enabled by this change.
 
+**2026-11-01 update:** the subsequent migration implemented the WinDivert user-mode broker, packet scheduler and GUI control path. This document remains the original comparison/proposal; see [current implementation](WINDIVERT-DESIGN.md) and [build/staging status](WINDIVERT-SETUP.md). Native runtime/traffic validation is still pending.
+
 ## Recommended candidate: unmodified official WinDivert binaries
 
 WinDivert exposes packet capture/reinjection to a user-mode program. Its official manual states that the prebuilt drivers are already digitally signed. Reusing an accepted, unmodified upstream driver would avoid signing a new driver ourselves; our pacing implementation would run in the Rust service. This is still a kernel-driver deployment requiring administrative privileges, not a driver-free or elevation-free solution. Calling `WinDivertOpen` automatically installs/loads its driver when necessary, so even a seemingly harmless open/probe must remain an explicit deployment/runtime action. No such call was made during this research. [Official manual](https://reqrypt.org/windivert-doc.html), [versioned upstream manual](https://github.com/basil00/WinDivert/blob/v2.2.2/doc/windivert.html).

@@ -1,17 +1,18 @@
-# Experimental WFP backend sources
+# System TCP backends
 
-This directory contains a Windows kernel driver, Rust SCM broker and shared GUI control client for **experimental per-executable TCP upload/download pacing**, without SOCKS settings. User-mode components build; the driver remains uncompiled without WDK. No component was installed, started or used to alter actual traffic during development.
+The current GUI targets **WinDivert through a separate Rust packet service**, using unmodified external upstream runtime binaries instead of this project's own kernel driver. Sources compile and isolated fixtures pass; nothing was installed/started and real IPC/driver/traffic behavior remains unverified.
 
-| Component | Implementation | Current verification |
+| Component | Implementation | Boundary |
 | --- | --- | --- |
-| `driver/driver.c` | ALE association, conditional IPv4/IPv6 stream callouts, two FIFO clone/injection queues per flow, independent shared directional budgets, bounded ownership/completions, lease/abort/unload | Source review only; WDK compilation and VM tests pending |
-| `shared/` | Fixed-width versioned IOCTL ABI and integer pacing budget, 32 rules / 512 flow bound | Shared C fixture compiled and passed with MSVC |
-| `service/` | LocalSystem SCM service, executable ALE filters, restricted driver handle, policy validation, ACL checks, heartbeat, guarded recovery/removal, Application event-log errors | Windows build, Clippy and four synthetic tests passed |
-| `control/` | Version 2 policy/frames, bounded overlapped local pipe transport, SCM server identity check | Build/lint and pure protocol fixtures passed; real IPC untested |
-| `policy.example.json` | Version 2 download/upload caps, with zero meaning unlimited in one direction | Strict parser fixtures passed |
+| `packet-control/` | Version 3 strict policy/frames, bounded overlapped local pipe, SCM server PID check | Compiled and pure fixtures tested; real authentication/ACL/cancellation tests pending |
+| `packet-service/` | SCM lifecycle, restricted runtime loading, NO_INSTALL WinDivert 2.2 handles, FLOW attribution, IPv4/IPv6 TCP parser and directional queues/budgets | Compiled/linted and synthetic scheduler/packet/authorization tests passed; native capture untested |
+| External `WinDivert.dll` / `WinDivert64.sys` | Reviewed unchanged x64 runtime supplied upstream | Not downloaded, bundled, installed, loaded or signature/load-verified in this session |
+| `service/`, `control/`, `driver/`, `shared/`, `tests/` | Retained earlier custom WFP v2 broker/driver/ABI/budget fixtures | Separate legacy endpoint; own driver remains uncompiled without WDK; current GUI does not use it |
 
-Start with [build, installation and removal instructions](../docs/WFP-SETUP.md) and [lifecycle/review notes](../docs/WFP-DESIGN.md). The GUI's **System TCP (WFP)** page now explicitly checks the service and applies/pauses saved caps through authenticated local IPC. No connection or installation occurs automatically. Administrator authorization is required for changes; ordinary users can request aggregate status.
+Start with [WinDivert build/staging/removal](../docs/WINDIVERT-SETUP.md) and [implemented design, bounds and remaining tests](../docs/WINDIVERT-DESIGN.md). Build-only scripts are `scripts/check-windivert.ps1` and `scripts/build-windivert.ps1`; they neither install nor open a driver.
 
-The v2 driver clones and absorbs selected stream data in both directions, then injects it when a shared directional budget permits. It never uses receive-only DEFER for upload or mixes inline passthrough into an OOB flow. UDP, quotas, schedules and WFP Call mode remain unsupported and are rejected. Apply replaces only the in-memory service policy; restart reloads the protected JSON file. GUI Quit does not stop WFP.
+**Check service** reads aggregate status. Authenticated administrator **Apply saved TCP limits** activates saved enabled directional caps, and **Pause System TCP** stops capture/releases queues. Startup/restart is paused; no automatic policy load, service startup, elevation or GUI launch probe occurs. GUI Quit stops its proxy but leaves this independent service active. Unsupported quotas/schedules/Call mode are rejected. Newly observed identified TCP flows only are shaped; unknown/unmatched/old/scoped/unsupported traffic can pass. Queue overflow/expiry can drop packets. Pause/reapply can cause a burst/reordering/retransmission; it does not deliberately abort TCP.
 
-**Pause/reapply/service stop/lease loss close tracked TCP connections** to avoid removing filters while OOB work is active. Reconnect clients after Apply. Incoming OOB pacing controls delivery, not physical packet arrival or ACK suppression; its bounded queue can overflow under fast senders. Oversized indications/resource failures terminate affected tracked connections. Untracked flow allocation failure leaves a connection unshaped and increments a counter. These limits and the unverified kernel path preclude a production enforcement claim.
+The protected runtime directory is `%ProgramFiles%/BandwidthLimiterPacket`. The service, executable and runtime files must have documented restrictive ownership/ACLs. All WinDivert handles use `NO_INSTALL`; the driver must already be prepared/running by a separate administrator action. Reusing a signed upstream runtime avoids creating/signing our own driver, but runtime trust/compatibility and LGPLv3 distribution obligations still require review. Portable GUI updates do not update service/runtime files.
+
+Legacy [WFP design](../docs/WFP-DESIGN.md) and [safe VM drain/quiesce/unload](../docs/WFP-SETUP.md) remain for old deployments. Do not remove live OOB filters or run the old/new shapers on the same traffic. `build-wfp.ps1` is retained for legacy source work only.
