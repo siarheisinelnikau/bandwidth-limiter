@@ -41,8 +41,8 @@ pub struct View {
 }
 pub enum UpdateCommand {
     Check,
-    Download(updater::Release),
-    Install(PathBuf, String),
+    Download(Box<updater::Release>),
+    Install,
 }
 
 pub struct Runtime {
@@ -198,13 +198,14 @@ impl Runtime {
         thread::Builder::new()
             .name("release-updates".into())
             .spawn(move || {
+                let mut prepared = None;
                 while let Ok(command) = updates.recv() {
                     match command {
                         UpdateCommand::Check => {
                             *shared_state.lock().unwrap() = State::Checking;
                             ctx.request_repaint();
                             let result = match updater::check() {
-                                Ok(Some(release)) => State::Available(release),
+                                Ok(Some(release)) => State::Available(Box::new(release)),
                                 Ok(None) => State::Current,
                                 Err(e) => State::Error(e),
                             };
@@ -213,20 +214,30 @@ impl Runtime {
                         UpdateCommand::Download(release) => {
                             *shared_state.lock().unwrap() = State::Downloading {
                                 received: 0,
-                                total: release.size,
+                                total: 0,
                             };
                             ctx.request_repaint();
-                            let result =
-                                match updater::download(&release, &directory, &shared_state, || {
-                                    ctx.request_repaint()
-                                }) {
-                                    Ok((staged, hash)) => State::Ready { staged, hash },
-                                    Err(e) => State::Error(e),
-                                };
+                            let result = match updater::download(&release, |received, total| {
+                                *shared_state.lock().unwrap() =
+                                    State::Downloading { received, total };
+                                ctx.request_repaint()
+                            }) {
+                                Ok(value) => {
+                                    prepared = Some(value);
+                                    State::Ready
+                                }
+                                Err(e) => State::Error(e),
+                            };
                             *shared_state.lock().unwrap() = result;
                         }
-                        UpdateCommand::Install(staged, hash) => {
-                            match updater::launch_helper(&staged, &hash, &directory) {
+                        UpdateCommand::Install => {
+                            let result = prepared
+                                .as_mut()
+                                .ok_or_else(|| {
+                                    "No verified update is ready. Download it again.".to_string()
+                                })
+                                .and_then(updater::install);
+                            match result {
                                 Ok(()) => {
                                     exit.store(true, std::sync::atomic::Ordering::Release);
                                 }

@@ -1,0 +1,245 @@
+{
+  "executable": "E:\\work\\github\\bandwidth-limiter\\dist\\BandwidthLimiter-v0.1.0.exe",
+  "machine": "x64",
+  "subsystem": 2,
+  "imports": [
+    "shlwapi.dll",
+    "kernel32.dll",
+    "api-ms-win-core-synch-l1-2-0.dll",
+    "user32.dll",
+    "shell32.dll",
+    "gdi32.dll",
+    "advapi32.dll",
+    "ole32.dll",
+    "comctl32.dll",
+    "ws2_32.dll",
+    "iphlpapi.dll",
+    "secur32.dll",
+    "crypt32.dll",
+    "bcryptprimitives.dll",
+    "KERNEL32.dll",
+    "USER32.dll",
+    "imm32.dll",
+    "dwmapi.dll",
+    "uxtheme.dll",
+    "ntdll.dll"
+  ],
+  "sha256": "8a9382931a48250f20f20b672c07e47a312fc577a7f3a5c6fff86004253b3416",
+  "resource_sizes": [
+    [
+      16,
+      16
+    ],
+    [
+      20,
+      20
+    ],
+    [
+      24,
+      24
+    ],
+    [
+      32,
+      32
+    ],
+    [
+      48,
+      48
+    ],
+    [
+      64,
+      64
+    ],
+    [
+      128,
+      128
+    ],
+    [
+      256,
+      256
+    ]
+  ],
+  "renders": [
+    {
+      "size": 16,
+      "background": [
+        250,
+        250,
+        250
+      ],
+      "visible_bounds": [
+        1,
+        1,
+        15,
+        15
+      ],
+      "changed_pixels": 110
+    },
+    {
+      "size": 16,
+      "background": [
+        28,
+        31,
+        38
+      ],
+      "visible_bounds": [
+        1,
+        1,
+        15,
+        15
+      ],
+      "changed_pixels": 110
+    },
+    {
+      "size": 20,
+      "background": [
+        250,
+        250,
+        250
+      ],
+      "visible_bounds": [
+        1,
+        1,
+        19,
+        19
+      ],
+      "changed_pixels": 182
+    },
+    {
+      "size": 20,
+      "background": [
+        28,
+        31,
+        38
+      ],
+      "visible_bounds": [
+        1,
+        1,
+        19,
+        19
+      ],
+      "changed_pixels": 182
+    },
+    {
+      "size": 24,
+      "background": [
+        250,
+        250,
+        250
+      ],
+      "visible_bounds": [
+        1,
+        1,
+        22,
+        22
+      ],
+      "changed_pixels": 248
+    },
+    {
+      "size": 24,
+      "background": [
+        28,
+        31,
+        38
+      ],
+      "visible_bounds": [
+        1,
+        1,
+        22,
+        22
+      ],
+      "changed_pixels": 248
+    },
+    {
+      "size": 32,
+      "background": [
+        250,
+        250,
+        250
+      ],
+      "visible_bounds": [
+        2,
+        2,
+        30,
+        30
+      ],
+      "changed_pixels": 440
+    },
+    {
+      "size": 32,
+      "background": [
+        28,
+        31,
+        38
+      ],
+      "visible_bounds": [
+        2,
+        2,
+        30,
+        30
+      ],
+      "changed_pixels": 440
+    },
+    {
+      "size": 48,
+      "background": [
+        250,
+        250,
+        250
+      ],
+      "visible_bounds": [
+        3,
+        3,
+        45,
+        45
+      ],
+      "changed_pixels": 990
+    },
+    {
+      "size": 48,
+      "background": [
+        28,
+        31,
+        38
+      ],
+      "visible_bounds": [
+        3,
+        3,
+        45,
+        45
+      ],
+      "changed_pixels": 990
+    },
+    {
+      "size": 64,
+      "background": [
+        250,
+        250,
+        250
+      ],
+      "visible_bounds": [
+        4,
+        4,
+        60,
+        60
+      ],
+      "changed_pixels": 1760
+    },
+    {
+      "size": 64,
+      "background": [
+        28,
+        31,
+        38
+      ],
+      "visible_bounds": [
+        4,
+        4,
+        60,
+        60
+      ],
+      "changed_pixels": 1760
+    }
+  ],
+  "scope": "LoadLibraryEx resource-only + LoadImageW + DrawIconEx, no process launch or OS tray screenshot"
+}

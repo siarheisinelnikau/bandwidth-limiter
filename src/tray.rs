@@ -27,17 +27,15 @@ impl Tray {
             &quit,
         ])
         .map_err(|e| e.to_string())?;
-        // An original, legible 24 px pair of transfer bars, embedded as code-native pixels.
-        let mut pixels = vec![0u8; 24 * 24 * 4];
-        for y in 3..21 {
-            for x in 3..21 {
-                if ((6..10).contains(&x) && y < 17) || ((14..18).contains(&x) && y > 7) {
-                    pixels[(y * 24 + x) * 4..(y * 24 + x) * 4 + 4]
-                        .copy_from_slice(&[76, 214, 186, 255]);
-                }
-            }
+        // Match the shell's native small-icon metric instead of shrinking a fixed bitmap.
+        let size = unsafe {
+            windows_sys::Win32::UI::WindowsAndMessaging::GetSystemMetrics(
+                windows_sys::Win32::UI::WindowsAndMessaging::SM_CXSMICON,
+            )
         }
-        let icon = tray_icon::Icon::from_rgba(pixels, 24, 24).map_err(|e| e.to_string())?;
+        .max(16) as u32;
+        let icon = tray_icon::Icon::from_rgba(crate::icons::pixels(size), size, size)
+            .map_err(|e| e.to_string())?;
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(true)
