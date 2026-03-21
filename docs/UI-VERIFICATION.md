@@ -44,7 +44,7 @@ The first capture exposed inherited horizontal layouts that pushed the detail ed
 
 ## Scheduling and tests
 
-Idle policy control now blocks on its bounded command channel instead of waking on an idle maintenance timer. Active proxy/monitor work still samples once per second. Immutable `Arc<View>` snapshots avoid copying the endpoint table on pointer events. The worker publishes repaint requests only for changed snapshots or completed commands; update-download progress coalesces notifications at 200 ms. The tray updates only when its displayed state changes.
+Idle policy control now blocks on its bounded command channel instead of waking on an idle maintenance timer. Active proxy/monitor work still samples once per second. Immutable `Arc<View>` snapshots avoid copying the endpoint table on pointer events. The worker publishes repaint requests only for changed snapshots or completed commands; the shared updater throttles download-progress callbacks to roughly 100 ms. The tray updates only when its displayed state changes.
 
 `Scheduling` uses Wait/WaitUntil, finite deadlines and a dirty flag; there is no Poll branch. Hidden/minimized paths skip layout, rasterization and presentation, keeping only data/commands dirty for restore. OS expose requests can present a retained bitmap without rebuilding the scene. Unit tests cover earliest-deadline selection, return to no scheduled work, hidden wake requests producing no due frame, and restoration becoming dirty. These are tests of scheduling state, not a live HWND assertion.
 

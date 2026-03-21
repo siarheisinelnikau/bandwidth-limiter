@@ -22,7 +22,9 @@ The WinDivert path avoids building/signing our own kernel driver or operating a 
 
 ## Build and package
 
-Requires Windows 10/11 x64, Rust 1.92+ with the `x86_64-pc-windows-msvc` toolchain and existing Visual Studio C++ build tools. No WDK, driver, service or administrator access is required for the explicit proxy. Other platforms are not supported distributions.
+Keep the shared updater workspace at `../rust-auto-updator`; its core is a local path dependency and must also be provisioned on CI runners. A standalone checkout does not currently resolve that unpublished sibling automatically.
+
+Requires Windows 10/11 x64, Rust 1.95+ with the `x86_64-pc-windows-msvc` toolchain and existing Visual Studio C++ build tools. No WDK, driver, service or administrator access is required for the explicit proxy. Other platforms are not supported distributions.
 
 ```powershell
 cargo build --locked -j 2
@@ -56,7 +58,7 @@ Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separatel
 
 The planned canonical repository is [siarheisinelnikau/bandwidth-limiter](https://github.com/siarheisinelnikau/bandwidth-limiter). A missing repository/release or HTTP failure is an error, never an up-to-date result. Stable semantic versions and the exact compatible Windows x64 asset name are required. Nothing has been published by this development session.
 
-**Download and install** downloads only after a click, limits the size, and requires a GitHub API SHA-256 digest or a matching `SHA256SUMS` entry. The downloaded file must be a Windows x64 PE executable. **Restart to finish update** prepares a copy of the current executable as a helper, waits for a readiness acknowledgement and normal app exit, preserves a `.previous.exe` backup, atomically replaces the EXE and relaunches it. Data stays in LocalAppData. Errors before replacement preserve the installed EXE; helper errors are written to `updates/last-update-error.txt`. A non-writable installation directory requires a manually managed update; no elevation is requested. SHA-256 from the same release detects corruption; it does not provide independent publisher authentication. Release signing is future work.
+**Download and install** delegates release selection, bounded transfer, SHA-256/x64 PE validation, staging, replacement, rollback and restart to the shared `rust-auto-updator` core. This product configures `BandwidthLimiter-vVERSION.exe` and a required `SHA256SUMS` entry for that exact name. Any GitHub digest supplied must agree. Downloads start only after a click. **Restart to finish update** is enabled only after unsaved settings have been saved. The helper waits for normal app exit, verifies the old executable's identity/hash, performs same-volume replacement with a backup and restarts; successful startup cleans known staging files. Settings and usage stay in LocalAppData. A non-writable executable directory requires a manually managed update; no elevation is requested. Checksums detect corruption and do not provide independent publisher authentication.
 
 ## Verification and screenshots
 
@@ -81,3 +83,10 @@ For a later separately permitted finite seven-screen capture after packaging (no
 It uses a fresh output directory, a 25-second external timeout, and the EXE's early `--render-preview ABSOLUTE_DIRECTORY` branch. That branch writes PNGs and exits before normal settings, workers, update checks, instance events or tray initialization. See [design and rendering verification](docs/UI-VERIFICATION.md) for the captured empty/error/125% states and remaining checks. Normal operation can opt into exit-time frame diagnostics with `--diagnostics ABSOLUTE_JSON_PATH`; that mode is intended for later bounded native testing and was not launched here.
 
 Licensed under [MIT](LICENSE). Dependency licenses remain their own; see [third-party notes](docs/THIRD-PARTY.md).
+
+
+The current GUI and both service executables embed the same multi-size identity. The following proof draws the packaged GUI's native resources on light and dark backgrounds; it is not a screenshot of the OS tray:
+
+![Packaged application and small tray icon resource proof](docs/screenshots/embedded-icons.png)
+
+See the [2026-11-01 shared-updater and icon audit](docs/VERIFICATION.md#shared-updater-and-embedded-icon-audit--2026-11-01) for artifact hashes, source/regression checks and the remaining native runtime gap.

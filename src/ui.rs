@@ -636,7 +636,8 @@ impl App {
                 State::Idle => design::note(ui, "No check has run yet."), State::Checking => { ui.label("Checking for updates…"); }, State::Current => { ui.label("You're up to date."); },
                 State::Available(release) => { ui.colored_label(ACCENT, format!("Version {} is available", release.version)); if ui.button("Download and install").clicked() { self.update_command(UpdateCommand::Download(release)); } },
                 State::Downloading { received, total } => { ui.add(egui::ProgressBar::new(received as f32 / total.max(1) as f32).show_percentage()); design::note(ui, "Downloading and verifying. Your installed copy stays in place until restart."); },
-                State::Ready { staged, hash } => { ui.label("Verified and ready. Settings and usage will be preserved."); if ui.button("Restart to finish update").clicked() { self.update_command(UpdateCommand::Install(staged, hash)); } },
+                State::Ready => { ui.label("Verified and ready. Settings and usage will be preserved."); if self.dirty { ui.colored_label(WARNING, "Save your changes before restarting for the update."); }
+                    if ui.add_enabled(!self.dirty, egui::Button::new("Restart to finish update")).clicked() { self.update_command(UpdateCommand::Install); } },
                 State::Error(error) => { ui.colored_label(WARNING, error); },
             }
             ui.add_space(12.0); ui.separator();

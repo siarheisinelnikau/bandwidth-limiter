@@ -2,11 +2,12 @@
 name = "bandwidth-limiter"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.92"
+rust-version = "1.95"
 license = "MIT"
 description = "Explicit per-application TCP shaping and network policy workbench for Windows"
 
 [dependencies]
+rust-auto-updator = { path = "../rust-auto-updator/crates/rust-auto-updator" }
 bandwidth-limiter-packet-control = { path = "backend/packet-control" }
 chrono = { version = "0.4.45", features = ["serde"] }
 egui = "=0.33.3"
@@ -15,16 +16,17 @@ egui_software_backend = { version = "=0.0.2", default-features = false, features
 softbuffer = { version = "=0.4.8", default-features = false }
 png = "0.18.1"
 fs2 = "0.4.3"
-semver = "1.0.28"
 serde = { version = "1.0.229", features = ["derive"] }
-serde_json = "1.0.154"
 sha2 = "0.10.9"
-ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
+serde_json = "1.0.154"
 winit = { version = "=0.30.13", default-features = false, features = ["rwh_06", "x11", "wayland"] }
 
 [target.'cfg(windows)'.dependencies]
 tray-icon = { version = "0.21.3", default-features = false }
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_System_Threading", "Win32_Storage_FileSystem"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_System_Threading", "Win32_Storage_FileSystem", "Win32_UI_WindowsAndMessaging"] }
+
+[build-dependencies]
+winresource = "=0.1.34"
 
 [dev-dependencies]
 tempfile = "3.27.0"

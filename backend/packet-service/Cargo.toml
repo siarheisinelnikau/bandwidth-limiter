@@ -8,3 +8,6 @@ license = "MIT"
 [dependencies]
 bandwidth-limiter-packet-control = { path = "../packet-control" }
 windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Security_Authorization", "Win32_Storage_FileSystem", "Win32_System_EventLog", "Win32_System_IO", "Win32_System_LibraryLoader", "Win32_System_Performance", "Win32_System_Services", "Win32_System_SystemInformation", "Win32_System_Threading"] }
+
+[build-dependencies]
+winresource = "=0.1.34"

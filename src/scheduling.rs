@@ -23,6 +23,18 @@ impl Scheduling {
             self.deadline = None;
         }
     }
+    pub fn repaint_callback(
+        &mut self,
+        now: Instant,
+        delay: Duration,
+        requested_pass: u64,
+        completed_pass: u64,
+    ) {
+        // The completed frame's viewport output covers callbacks sent during that frame.
+        if requested_pass >= completed_pass {
+            self.wake(now, delay);
+        }
+    }
     pub fn wake(&mut self, now: Instant, delay: Duration) {
         if !self.visible {
             self.dirty = true;
@@ -71,5 +83,65 @@ mod tests {
         s.dirty = false;
         assert!(!s.due(now + Duration::from_secs(5)));
         assert!(s.deadline.is_none());
+    }
+}
+
+#[cfg(test)]
+mod egui_regressions {
+    use super::*;
+    #[test]
+    fn real_egui_callbacks_settle_after_discarding_consumed_passes() {
+        let ctx = egui::Context::default();
+        let (send, receive) = std::sync::mpsc::channel();
+        ctx.set_request_repaint_callback(move |info| {
+            let _ = send.send(info);
+        });
+        let mut schedule = Scheduling::new();
+        let mut frames = 0;
+        let mut queued = Vec::new();
+        while (schedule.due(Instant::now()) || !queued.is_empty()) && frames < 16 {
+            if schedule.due(Instant::now()) {
+                schedule.dirty = false;
+                schedule.deadline = None;
+                let output = ctx.run(egui::RawInput::default(), |ctx| {
+                    egui::CentralPanel::default().show(ctx, |ui| {
+                        ui.label("Settled utility");
+                    });
+                });
+                frames += 1;
+                schedule.wake(
+                    Instant::now(),
+                    output.viewport_output[&egui::ViewportId::ROOT].repaint_delay,
+                );
+            }
+            // Deliver callbacks a loop iteration late, as a native event queue can.
+            let callbacks = std::mem::replace(&mut queued, receive.try_iter().collect());
+            for callback in callbacks {
+                schedule.repaint_callback(
+                    Instant::now(),
+                    callback.delay,
+                    callback.current_cumulative_pass_nr,
+                    ctx.cumulative_pass_nr(),
+                );
+            }
+        }
+        assert_eq!(
+            frames, 2,
+            "already consumed repaint callbacks must not add frames"
+        );
+        assert!(!schedule.dirty);
+        ctx.request_repaint();
+        for callback in receive.try_iter() {
+            schedule.repaint_callback(
+                Instant::now(),
+                callback.delay,
+                callback.current_cumulative_pass_nr,
+                ctx.cumulative_pass_nr(),
+            );
+        }
+        assert!(
+            schedule.due(Instant::now()),
+            "a new worker update still wakes the UI"
+        );
     }
 }

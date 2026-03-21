@@ -20,13 +20,14 @@ use winit::{
 
 #[derive(Debug)]
 pub enum Wake {
-    Repaint(Duration),
+    Repaint { delay: Duration, pass: u64 },
     Menu(String),
 }
 pub fn run(
     bootstrap: Result<(File, Config, Usage), String>,
     directory: PathBuf,
     diagnostics: Option<PathBuf>,
+    cleanup: Option<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let events = EventLoop::<Wake>::with_user_event().build()?;
     events.set_control_flow(ControlFlow::Wait);
@@ -49,6 +50,7 @@ pub fn run(
         present_count: 0,
         instance: None,
         diagnostics,
+        cleanup,
         segments: vec![],
         segment_start: Instant::now(),
         segment_layout: 0,
@@ -80,6 +82,7 @@ struct Host {
     present_count: u64,
     instance: Option<crate::instance::Instance>,
     diagnostics: Option<PathBuf>,
+    cleanup: Option<PathBuf>,
     segments: Vec<serde_json::Value>,
     segment_start: Instant,
     segment_layout: u64,
@@ -147,6 +150,7 @@ impl Host {
             || self.painter.pixels.len() != size.width as usize * size.height as usize
         {
             self.scheduling.dirty = false;
+            self.scheduling.deadline = None;
             let layout_start = Instant::now();
             let output = self.ctx.run(input.take_egui_input(window), |ctx| {
                 if let Some(app) = &mut self.app { app.draw(ctx); }
@@ -194,6 +198,9 @@ impl ApplicationHandler<Wake> for Host {
                 e.create_window(
                     Window::default_attributes()
                         .with_title("BandwidthLimiter")
+                        .with_window_icon(
+                            winit::window::Icon::from_rgba(crate::icons::pixels(32), 32, 32).ok(),
+                        )
                         .with_inner_size(winit::dpi::LogicalSize::new(980.0, 720.0))
                         .with_min_inner_size(winit::dpi::LogicalSize::new(840.0, 620.0))
                         .with_visible(false),
@@ -212,7 +219,10 @@ impl ApplicationHandler<Wake> for Host {
             let proxy = self.proxy.clone();
             self.ctx.set_request_repaint_callback(move |info| {
                 if info.delay != Duration::MAX {
-                    let _ = proxy.send_event(Wake::Repaint(info.delay));
+                    let _ = proxy.send_event(Wake::Repaint {
+                        delay: info.delay,
+                        pass: info.current_cumulative_pass_nr,
+                    });
                 }
             });
             crate::design::apply(&self.ctx);
@@ -230,6 +240,12 @@ impl ApplicationHandler<Wake> for Host {
                 }
                 Err(error) => self.startup_error = Some(error),
             }
+            if self.app.is_some()
+                && let Some(directory) = self.cleanup.take()
+                && let Ok(config) = bandwidth_limiter::updater::config()
+            {
+                rust_auto_updator::cleanup_after_update(directory, config.install);
+            }
             self.tray = crate::tray::Tray::new(self.proxy.clone()).ok();
             if let Some(app) = &mut self.app {
                 app.tray_available = self.tray.is_some();
@@ -246,7 +262,14 @@ impl ApplicationHandler<Wake> for Host {
     fn user_event(&mut self, e: &ActiveEventLoop, event: Wake) {
         self.poll(e);
         match event {
-            Wake::Repaint(delay) => self.scheduling.wake(Instant::now(), delay),
+            Wake::Repaint { delay, pass } => {
+                self.scheduling.repaint_callback(
+                    Instant::now(),
+                    delay,
+                    pass,
+                    self.ctx.cumulative_pass_nr(),
+                );
+            }
             Wake::Menu(id) => {
                 match id.as_str() {
                     "open" => self.restore(),

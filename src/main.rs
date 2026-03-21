@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod design;
+mod icons;
 mod instance;
 mod paint;
 mod preview;
@@ -21,29 +22,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     if args.get(1).is_some_and(|a| a == "--apply-update") {
-        let result = (|| {
-            if args.len() != 6 {
-                return Err("Invalid update helper arguments".to_string());
-            }
-            let pid = args[2]
-                .to_string_lossy()
-                .parse::<u32>()
-                .map_err(|e| e.to_string())?;
-            updater::apply_update(
-                pid,
-                std::path::Path::new(&args[3]),
-                std::path::Path::new(&args[4]),
-                &args[5].to_string_lossy(),
-            )
-        })();
-        if let Err(error) = result {
-            if let Some(staged) = args.get(3).and_then(|p| std::path::Path::new(p).parent()) {
-                let _ = std::fs::write(staged.join("last-update-error.txt"), error);
-            }
-            std::process::exit(1);
-        }
+        rust_auto_updator::apply_update(&updater::config()?)?;
         return Ok(());
     }
+    let cleanup = if args.len() == 3 && args[1] == "--cleanup-update" {
+        Some(std::path::PathBuf::from(&args[2]))
+    } else {
+        None
+    };
     let directory = storage::data_directory();
     let diagnostics = if args.len() == 3 && args[1] == "--diagnostics" {
         let path = std::path::PathBuf::from(&args[2]);
@@ -51,7 +37,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             return Err("Diagnostics path must be absolute".into());
         }
         Some(path)
-    } else if args.len() == 1 {
+    } else if args.len() == 1 || cleanup.is_some() {
         None
     } else {
         return Err(
@@ -67,5 +53,5 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             Err(error)
         }
     };
-    window::run(bootstrap, directory, diagnostics)
+    window::run(bootstrap, directory, diagnostics, cleanup)
 }

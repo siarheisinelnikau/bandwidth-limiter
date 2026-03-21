@@ -13,12 +13,12 @@ BandwidthLimiter's own source is MIT-licensed. `Cargo.lock` records exact resolv
 | chrono | Local calendar scheduling | MIT OR Apache-2.0 |
 | serde / serde_json | Settings and release data | MIT OR Apache-2.0 |
 | fs2 | Data-directory instance lock | MIT OR Apache-2.0 |
-| semver | Stable update version comparison | MIT OR Apache-2.0 |
-| sha2 | Download integrity | MIT OR Apache-2.0 |
-| ureq | HTTPS update requests | MIT OR Apache-2.0 |
+| rust-auto-updator | Shared release selection, verified download and Windows replacement | MIT |
+| winresource (build only) | Embedded application/service icon resources | MIT |
+| sha2 | Instance identity and shared download integrity | MIT OR Apache-2.0 |
 | windows-sys | Windows API bindings | MIT OR Apache-2.0 |
 | tempfile (tests only) | Isolated fixture directories | MIT OR Apache-2.0 |
 
-Transitive components include rustls/ring, WebPKI roots, image/font libraries, graphics bindings and platform libraries. Their upstream license/notice files must be included when preparing public distribution. A full generated notice bundle and signing review are still release preparation work. No competitor code, assets, packet drivers or commercial libraries were copied into the project.
+Transitive updater components include semver, ureq, native-tls/Schannel and image/font libraries, graphics bindings and platform libraries. Their upstream license/notice files must be included when preparing public distribution. A full generated notice bundle and signing review are still release preparation work. No competitor code, assets, packet drivers or commercial libraries were copied into the project.
 
 The System TCP service dynamically binds an externally staged **WinDivert 2.2** runtime. No WinDivert DLL, SYS or implementation source is bundled by this repository/build; Rust FFI declarations describe its public ABI. Upstream offers LGPLv3 or GPLv2. A future bundled distribution must select and satisfy its license, include the required notices/license texts and corresponding-source availability, and preserve relevant compatible-library replacement rights; the project's MIT license does not replace those obligations. Use unchanged reviewed upstream signed binaries, with architecture/signature/load/coexistence checks before release. [Upstream license](https://github.com/basil00/WinDivert/blob/v2.2.2/LICENSE), [official release](https://github.com/basil00/WinDivert/releases/tag/v2.2.2).
