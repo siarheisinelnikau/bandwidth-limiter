@@ -60,12 +60,12 @@ pub fn apply(ctx: &egui::Context, theme: Theme) {
     } else {
         Color32::from_rgb(202, 234, 225)
     };
-    style.visuals.selection.stroke = Stroke::new(1.0, p.accent);
-    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, p.muted);
+    style.visuals.selection.stroke = Stroke::new(1.0_f32, p.accent);
+    style.visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0_f32, p.muted);
     style.visuals.widgets.inactive.bg_fill = p.surface;
     style.visuals.widgets.inactive.weak_bg_fill = p.surface;
     style.visuals.widgets.inactive.bg_stroke = Stroke::new(
-        1.0,
+        1.0_f32,
         if dark {
             Color32::from_rgb(78, 102, 122)
         } else {
