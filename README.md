@@ -1,6 +1,6 @@
 # BandwidthLimiter
 
-A Windows x64 desktop utility for explicit, per-application TCP bandwidth policies and call-friendly presets. Version 0.1.0 is an early implementation with a real SOCKS5 relay and a testable policy engine. It is independent of, and not affiliated with, NetLimiter. The implementation and interface are original.
+A Windows x64 desktop utility for explicit, per-application TCP bandwidth policies and call-friendly presets. Version 0.2.0 adds six interface languages and light/dark appearance to the real SOCKS5 relay and testable policy engine. It is independent of, and not affiliated with, NetLimiter. The implementation and interface are original.
 
 **Backends:** the portable SOCKS5 proxy paces TCP connections explicitly routed through it. **System TCP (WinDivert)** now controls a separate Rust service that captures, queues and reinjects selected applications' TCP payload in both directions through an unchanged upstream WinDivert runtime. GUI/service/control compile and fixture tests pass; real driver loading, IPC and traffic behavior remain unverified. No service/driver is installed or started by ordinary GUI launch/Save. The packet service starts paused and its explicit Apply opens only an already prepared driver with `NO_INSTALL`.
 
@@ -34,7 +34,7 @@ cargo build --locked -j 2
 ./scripts/build-windivert.ps1 -Offline
 ```
 
-If dependencies have not already been cached, omit `-Offline` when packaging and run `cargo fetch --locked` before the offline checks. Cargo is restricted to two jobs and the repository-local `target` directory. The package script creates `dist/BandwidthLimiter-v0.1.0.exe` and `dist/SHA256SUMS`. It does not launch the executable or publish anything. The Windows release statically links the CRT where supported; all fonts are embedded.
+If dependencies have not already been cached, omit `-Offline` when packaging and run `cargo fetch --locked` before the offline checks. Cargo is restricted to two jobs and the repository-local `target` directory. The package script creates `dist/BandwidthLimiter-v0.2.0.exe` and `dist/SHA256SUMS`. It does not launch the executable or publish anything. The Windows release statically links the CRT where supported; all fonts are embedded.
 
 ## Use after manual validation
 
@@ -50,19 +50,27 @@ Equal schedule start/end times mean all day on the selected weekdays. End times 
 
 For **System TCP (WinDivert)**, follow the [separate VM staging instructions](docs/WINDIVERT-SETUP.md). **Check service** reads a manual snapshot; standard users are read-only and Apply/Pause require an elevated administrator client. Save EXE caps, choose **Apply saved TCP limits**, then reconnect applications so the service can observe their new flows. Old/unidentified/unmatched connections, loopback, UDP/QUIC and unsupported packet forms are not capped. Enabled quotas/schedules and active Call mode are refused together. **Pause System TCP** releases queued traffic without deliberately aborting TCP; bursts, reordering, drops and retransmissions remain possible. A service restart begins paused. Counters include retransmitted TCP payload and reset on Apply; they are not delivered-byte or wire-rate measurements. Read the [queue/attribution limits](docs/WINDIVERT-DESIGN.md). Portable EXE updates do not update the service or external runtime.
 
-Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separately from the executable. Edits take effect only after a successful save. A corrupt or unsupported settings file is preserved and produces a startup error. A data-directory file lock prevents concurrent workers; a same-session named event requests that the running instance reopen its window. Call mode and the proxy start off each launch. Foreground activation, keyboard traversal and repeated hide/restore cycles still need native validation.
+Settings and daily usage live under `%LOCALAPPDATA%/BandwidthLimiter`, separately from the executable. Policy edits take effect only after a successful save; language and appearance preview immediately and are retained on Save. A corrupt or unsupported settings file is preserved and produces a startup error. A data-directory file lock prevents concurrent workers; a same-session named event requests that the running instance reopen its window. Call mode and the proxy start off each launch. Foreground activation, keyboard traversal and repeated hide/restore cycles still need native validation.
+
+## Language and appearance
+
+Open **Settings → Appearance**. Choose **English**, **Русский**, **Français**, **Deutsch**, **Español**, or **Italiano** from the language menu, then choose **Light** or **Dark**. Both changes apply immediately, including the tray menu. Choose **Save changes** to retain your preferences for the next launch. Existing settings files gain English and Dark defaults without changing rules, quotas, usage or the startup-update preference.
+
+Application screens, help, schedules, connection states, normal notifications, validation and update controls use the selected language. File paths, application names, network addresses and detailed diagnostics from Windows, the updater and the independent service remain verbatim. Startup recovery uses English when valid settings cannot be loaded. English is also the fallback for an unknown message or future preference value.
+
+The light palette covers panels, editors, buttons, selections and status text; changing appearance adds no periodic repaint or disk-write loop. Source-level scheduling remains event-driven with hidden-window rasterization suppressed. Current localized/light screenshots, native tray interaction and runtime performance measurements remain pending because this task retained the repository’s no-GUI restriction. Historical screenshots below do not verify version 0.2.0.
 
 ## Updates
 
 **Settings** shows the installed version, **Check for updates**, and the persistent **Check for updates on startup** toggle (on by default). Save the toggle to make it apply on the next launch. Disabled means no startup update request. Startup checks run on one background worker; no-update results and transient errors stay in Settings, while a newer version gets an inline notice.
 
-The planned canonical repository is [siarheisinelnikau/bandwidth-limiter](https://github.com/siarheisinelnikau/bandwidth-limiter). A missing repository/release or HTTP failure is an error, never an up-to-date result. Stable semantic versions and the exact compatible Windows x64 asset name are required. Nothing has been published by this development session.
+The canonical repository is [siarheisinelnikau/bandwidth-limiter](https://github.com/siarheisinelnikau/bandwidth-limiter). A missing repository/release or HTTP failure is an error, never an up-to-date result. Stable semantic versions and the exact compatible Windows x64 asset name are required.
 
 **Download and install** delegates release selection, bounded transfer, SHA-256/x64 PE validation, staging, replacement, rollback and restart to the shared `rust-auto-updator` core. This product configures `BandwidthLimiter-vVERSION.exe` and a required `SHA256SUMS` entry for that exact name. Any GitHub digest supplied must agree. Downloads start only after a click. **Restart to finish update** is enabled only after unsaved settings have been saved. The helper waits for normal app exit, verifies the old executable's identity/hash, performs same-volume replacement with a backup and restarts; successful startup cleans known staging files. Settings and usage stay in LocalAppData. A non-writable executable directory requires a manually managed update; no elevation is requested. Checksums detect corruption and do not provide independent publisher authentication.
 
 ## Verification and screenshots
 
-See [verification status](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [Windows API constraints](docs/WINDOWS-BACKEND.md), and [draft release notes](docs/RELEASE-v0.1.0.md).
+See [verification status](docs/VERIFICATION.md), [architecture](docs/ARCHITECTURE.md), [Windows API constraints](docs/WINDOWS-BACKEND.md), and [release notes](docs/RELEASE-v0.2.0.md).
 
 For System TCP see [backend status](backend/README.md), [WinDivert design](docs/WINDIVERT-DESIGN.md), and [manual VM build/staging/removal instructions](docs/WINDIVERT-SETUP.md). `scripts/build-windivert.ps1` builds only the user-mode broker. Legacy [custom WFP notes](docs/WFP-DESIGN.md) and [safe drain/unload instructions](docs/WFP-SETUP.md) remain for old test VMs. No script migrates a running backend automatically.
 

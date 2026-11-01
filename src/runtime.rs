@@ -149,7 +149,7 @@ impl Runtime {
                     Ok(Command::Start(port)) if proxy.is_none() => {
                         match Server::start(port, engine.clone(), status.clone()) {
                             Ok(server) => { proxy = Some(server); let _ = tx.send(Event::Message(Message::new("SOCKS5 listening on 127.0.0.1:{port}; only enabled executable rules are accepted", vec![port.to_string()]))); }
-                            Err(e) => { let _ = tx.send(Event::Message(e.into())); }
+                            Err(e) => { let _ = tx.send(Event::Message(Message::new("Could not start proxy: {}", vec![e]))); }
                         }
                     }
                     Ok(Command::Stop) => { proxy.take(); }
@@ -161,7 +161,7 @@ impl Runtime {
                 if refresh || (monitor && previous_time.elapsed() >= Duration::from_secs(1)) {
                     match platform::snapshot() {
                         Ok(snapshot) => { connections = snapshot; connection_note = Message::new("{} endpoints • {} • read-only; direct-traffic bytes are unknown", vec![connections.len().to_string(), chrono::Local::now().format("%H:%M:%S").to_string()]); }
-                        Err(e) => { connection_note = e.into(); }
+                        Err(e) => { connection_note = Message::new("Could not read connections: {}", vec![e]); }
                     }
                 }
                 let usage = engine.lock().unwrap().usage.clone();

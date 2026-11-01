@@ -1167,5 +1167,19 @@
     "Dienstfehler: {}",
     "Error del servicio: {}",
     "Errore del servizio: {}"
+  ],
+  "Could not start proxy: {}": [
+    "Не удалось запустить прокси: {}",
+    "Impossible de démarrer le proxy : {}",
+    "Proxy konnte nicht gestartet werden: {}",
+    "No se pudo iniciar el proxy: {}",
+    "Impossibile avviare il proxy: {}"
+  ],
+  "Could not read connections: {}": [
+    "Не удалось прочитать соединения: {}",
+    "Impossible de lire les connexions : {}",
+    "Verbindungen konnten nicht gelesen werden: {}",
+    "No se pudieron leer las conexiones: {}",
+    "Impossibile leggere le connessioni: {}"
   ]
 }
