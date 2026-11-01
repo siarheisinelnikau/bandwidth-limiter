@@ -2,7 +2,12 @@ param([string]$OutputDirectory, [string]$Executable)
 $ErrorActionPreference = 'Stop'
 Push-Location (Split-Path $PSScriptRoot -Parent)
 try {
-    if (-not $Executable) { $Executable = Join-Path (Get-Location) 'dist/BandwidthLimiter-v0.1.0.exe' }
+    if (-not $Executable) {
+        $manifest = Get-Content -LiteralPath 'Cargo.toml' -Raw
+        $version = [regex]::Match($manifest, '(?m)^version\s*=\s*"([0-9]+\.[0-9]+\.[0-9]+)"').Groups[1].Value
+        if (-not $version) { throw 'Cannot read package version' }
+        $Executable = Join-Path (Get-Location) "dist/BandwidthLimiter-v$version.exe"
+    }
     $Executable = (Resolve-Path -LiteralPath $Executable).Path
     if (-not $OutputDirectory) { $OutputDirectory = Join-Path (Get-Location) ('.test-output/preview-' + [guid]::NewGuid().ToString('N')) }
     if (-not [System.IO.Path]::IsPathRooted($OutputDirectory)) { throw 'Output directory must be absolute' }

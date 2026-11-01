@@ -1,4 +1,5 @@
 use bandwidth_limiter::{
+    i18n::Message,
     model::{Config, Usage},
     platform::{self, Connection},
     policy::Engine,
@@ -27,7 +28,7 @@ pub enum Command {
     Shutdown,
 }
 pub enum Event {
-    Message(String),
+    Message(Message),
     Saved(String),
     Closed,
 }
@@ -37,7 +38,7 @@ pub struct View {
     pub usage: Usage,
     pub rates: BTreeMap<String, [f64; 2]>,
     pub connections: Vec<Connection>,
-    pub connection_note: String,
+    pub connection_note: Message,
 }
 pub enum UpdateCommand {
     Check,
@@ -125,7 +126,7 @@ impl Runtime {
             let mut previous_time = Instant::now();
             let mut previous = BTreeMap::<String, [u64; 2]>::new();
             let mut last_usage = String::new();
-            let mut connections = vec![]; let mut connection_note = "Not sampled. Refresh reads Windows TCP/UDP endpoints; byte counters are unavailable for direct traffic.".to_string();
+            let mut connections = vec![]; let mut connection_note = "Not sampled. Refresh reads Windows TCP/UDP endpoints; byte counters are unavailable for direct traffic.".into();
             loop {
                 let active = proxy.is_some() || monitor;
                 let command = if active { rx.recv_timeout(Duration::from_secs(1)) }
@@ -141,14 +142,14 @@ impl Runtime {
                                 let saved = serde_json::to_string(&config).unwrap_or_default();
                                 engine.lock().unwrap().configure(config); let _ = tx.send(Event::Saved(saved));
                             }
-                            Err(e) => { let _ = tx.send(Event::Message(format!("Settings were not applied: {e}"))); }
+                            Err(e) => { let _ = tx.send(Event::Message(Message::new("Settings were not applied: {e}", vec![e]))); }
                         }
                     }
                     Ok(Command::Call(enabled)) => { engine.lock().unwrap().set_call_mode(enabled); }
                     Ok(Command::Start(port)) if proxy.is_none() => {
                         match Server::start(port, engine.clone(), status.clone()) {
-                            Ok(server) => { proxy = Some(server); let _ = tx.send(Event::Message(format!("SOCKS5 listening on 127.0.0.1:{port}; only enabled executable rules are accepted"))); }
-                            Err(e) => { let _ = tx.send(Event::Message(e)); }
+                            Ok(server) => { proxy = Some(server); let _ = tx.send(Event::Message(Message::new("SOCKS5 listening on 127.0.0.1:{port}; only enabled executable rules are accepted", vec![port.to_string()]))); }
+                            Err(e) => { let _ = tx.send(Event::Message(e.into())); }
                         }
                     }
                     Ok(Command::Stop) => { proxy.take(); }
@@ -159,8 +160,8 @@ impl Runtime {
                 }
                 if refresh || (monitor && previous_time.elapsed() >= Duration::from_secs(1)) {
                     match platform::snapshot() {
-                        Ok(snapshot) => { connections = snapshot; connection_note = format!("{} endpoints • {} • read-only; direct-traffic bytes are unknown", connections.len(), chrono::Local::now().format("%H:%M:%S")); }
-                        Err(e) => { connection_note = e; }
+                        Ok(snapshot) => { connections = snapshot; connection_note = Message::new("{} endpoints • {} • read-only; direct-traffic bytes are unknown", vec![connections.len().to_string(), chrono::Local::now().format("%H:%M:%S").to_string()]); }
+                        Err(e) => { connection_note = e.into(); }
                     }
                 }
                 let usage = engine.lock().unwrap().usage.clone();
@@ -169,7 +170,7 @@ impl Runtime {
                     if serialized != last_usage {
                         match storage::write_json(&worker_directory.join("usage.json"), &usage) {
                             Ok(()) => { last_usage = serialized; }
-                            Err(e) => { let _ = tx.send(Event::Message(format!("Usage checkpoint failed; restart may lose quota history: {e}"))); }
+                            Err(e) => { let _ = tx.send(Event::Message(Message::new("Usage checkpoint failed; restart may lose quota history: {e}", vec![e]))); }
                         }
                     }
                     last_save = Instant::now();

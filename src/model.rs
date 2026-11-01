@@ -1,4 +1,14 @@
+use crate::i18n::Language;
 use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Theme {
+    #[serde(rename = "light")]
+    Light,
+    #[default]
+    #[serde(rename = "dark", other)]
+    Dark,
+}
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub const REPOSITORY: &str = "siarheisinelnikau/bandwidth-limiter";
@@ -66,6 +76,8 @@ impl Default for Rule {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Config {
+    pub language: Language,
+    pub theme: Theme,
     pub schema: u32,
     pub proxy_port: u16,
     pub startup_update_check: bool,
@@ -77,6 +89,8 @@ pub struct Config {
 impl Default for Config {
     fn default() -> Self {
         Self {
+            language: Language::English,
+            theme: Theme::Dark,
             schema: 1,
             proxy_port: 1088,
             startup_update_check: true,
@@ -136,4 +150,35 @@ pub enum Direction {
 pub struct Usage {
     pub day: String,
     pub apps: std::collections::BTreeMap<String, [u64; 2]>,
+}
+
+#[cfg(test)]
+mod preference_tests {
+    use super::*;
+    #[test]
+    fn old_settings_gain_defaults_and_saved_preferences_roundtrip() {
+        let original = r#"{"schema":1,"proxy_port":1089,"startup_update_check":false}"#;
+        let mut config: Config = serde_json::from_str(original).unwrap();
+        assert_eq!(config.language, Language::English);
+        assert_eq!(config.theme, Theme::Dark);
+        assert_eq!(config.proxy_port, 1089);
+        assert!(!config.startup_update_check);
+        for language in Language::ALL {
+            for theme in [Theme::Light, Theme::Dark] {
+                config.language = language;
+                config.theme = theme;
+                let saved: Config =
+                    serde_json::from_str(&serde_json::to_string(&config).unwrap()).unwrap();
+                assert_eq!(saved.language, language);
+                assert_eq!(saved.theme, theme);
+                assert_eq!(saved.proxy_port, 1089);
+                assert!(!saved.startup_update_check);
+                saved.validate().unwrap();
+            }
+        }
+        let future: Config =
+            serde_json::from_str(r#"{"language":"future","theme":"future"}"#).unwrap();
+        assert_eq!(future.language, Language::English);
+        assert_eq!(future.theme, Theme::Dark);
+    }
 }
