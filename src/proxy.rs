@@ -168,6 +168,9 @@ fn serve(
     stop: Arc<AtomicBool>,
     identity: Arc<Identity>,
 ) -> io::Result<()> {
+    // Winsock accept inherits the listener's nonblocking mode. Handshake read_exact
+    // needs the configured blocking deadlines while the client prepares CONNECT.
+    client.set_nonblocking(false)?;
     client.set_read_timeout(Some(Duration::from_secs(3)))?;
     client.set_write_timeout(Some(Duration::from_secs(3)))?;
     let path = identity(client.peer_addr()?, server).map_err(failure)?;
@@ -509,7 +512,7 @@ mod tests {
             Arc::new(Mutex::new(Status::default())),
         )
     }
-    fn connect(proxy: SocketAddr, port: u16) -> TcpStream {
+    fn connect(proxy: SocketAddr, port: u16, status: &Mutex<Status>) -> TcpStream {
         let mut client = TcpStream::connect(proxy).unwrap();
         client
             .set_read_timeout(Some(Duration::from_secs(4)))
@@ -522,7 +525,10 @@ mod tests {
         request.extend(port.to_be_bytes());
         client.write_all(&request).unwrap();
         let mut response = [0; 10];
-        client.read_exact(&mut response).unwrap();
+        client.read_exact(&mut response).unwrap_or_else(|error| {
+            let diagnostics = format!("{:?}", status.lock().unwrap());
+            panic!("SOCKS CONNECT failed: {error}; relay status: {diagnostics}")
+        });
         assert_eq!(response[1], 0);
         client
     }
@@ -549,7 +555,7 @@ mod tests {
             Arc::new(|_, _| Ok(r"C:\Fixture.exe".into())),
         )
         .unwrap();
-        let mut client = connect(proxy.address, port);
+        let mut client = connect(proxy.address, port, &status);
         client.write_all(b"fixture").unwrap();
         client.shutdown(Shutdown::Write).unwrap();
         let mut response = Vec::new();

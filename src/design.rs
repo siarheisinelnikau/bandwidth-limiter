@@ -38,6 +38,11 @@ pub fn palette(theme: Theme) -> Palette {
 pub fn apply(ctx: &egui::Context, theme: Theme) {
     let p = palette(theme);
     let dark = theme == Theme::Dark;
+    ctx.set_theme(if dark {
+        egui::Theme::Dark
+    } else {
+        egui::Theme::Light
+    });
     let mut style = (*ctx.style()).clone();
     style.visuals = if dark {
         egui::Visuals::dark()
@@ -106,4 +111,32 @@ pub fn section(ui: &mut egui::Ui, text: &str) {
 }
 pub fn note(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) {
     ui.label(text.into().color(ui.visuals().weak_text_color()));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn saved_appearance_survives_an_opposite_system_theme_event() {
+        let ctx = egui::Context::default();
+        for (theme, system_theme) in [
+            (Theme::Light, egui::Theme::Dark),
+            (Theme::Dark, egui::Theme::Light),
+        ] {
+            apply(&ctx, theme);
+            let _ = ctx.run(
+                egui::RawInput {
+                    system_theme: Some(system_theme),
+                    ..Default::default()
+                },
+                |_| {},
+            );
+            assert_eq!(ctx.style().visuals.dark_mode, theme == Theme::Dark);
+            assert_eq!(ctx.style().visuals.panel_fill, palette(theme).background);
+            assert_eq!(
+                ctx.style().visuals.selection.stroke.color,
+                palette(theme).accent
+            );
+        }
+    }
 }
