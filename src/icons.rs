@@ -24,7 +24,7 @@ mod tests {
         for n in [16, 20, 24, 32] {
             let rgba = pixels(n);
             assert_eq!(rgba.len(), (n * n * 4) as usize);
-            let alpha = rgba.chunks_exact(4).filter(|p| p[3] != 0).count();
+            let alpha = rgba.as_chunks::<4>().0.iter().filter(|p| p[3] != 0).count();
             assert!(alpha > (n * n / 6) as usize);
             assert!(alpha < (n * n / 2) as usize);
             assert_eq!(rgba[3], 0);
