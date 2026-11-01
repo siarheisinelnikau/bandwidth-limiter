@@ -43,7 +43,10 @@ impl Tray {
         let icon = TrayIconBuilder::new()
             .with_menu(Box::new(menu))
             .with_menu_on_left_click(true)
-            .with_tooltip("BandwidthLimiter · proxy paused")
+            .with_tooltip(format!(
+                "BandwidthLimiter · {}",
+                tr(language, "Proxy paused")
+            ))
             .with_icon(icon)
             .build()
             .map_err(|e| e.to_string())?;

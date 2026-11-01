@@ -18,11 +18,12 @@ impl Paint {
         width: u32,
         height: u32,
     ) {
+        let background = ctx.style().visuals.panel_fill.to_array();
         self.pixels
-            .resize(width as usize * height as usize, [19, 26, 34, 255]);
+            .resize(width as usize * height as usize, background);
         // The rasterizer alpha-composites its cached canvas; transparent areas must
         // start from a clean backbuffer rather than the preceding frame's text.
-        self.pixels.fill([19, 26, 34, 255]);
+        self.pixels.fill(background);
         let primitives = ctx.tessellate(output.shapes.clone(), output.pixels_per_point);
         self.renderer.render(
             &mut BufferMutRef::new(&mut self.pixels, width as usize, height as usize),
@@ -39,6 +40,9 @@ mod tests {
     #[test]
     fn removed_content_does_not_survive_in_the_next_frame() {
         let ctx = egui::Context::default();
+        ctx.style_mut(|style| {
+            style.visuals.panel_fill = egui::Color32::from_rgb(19, 26, 34);
+        });
         let mut paint = Paint::new();
         let input = || egui::RawInput {
             screen_rect: Some(egui::Rect::from_min_size(
@@ -59,5 +63,11 @@ mod tests {
         let output = ctx.run(input(), |_| {});
         paint.raster(&ctx, &output, 80, 80);
         assert_eq!(paint.pixels[40 * 80 + 40], [19, 26, 34, 255]);
+        ctx.style_mut(|style| {
+            style.visuals.panel_fill = egui::Color32::from_rgb(245, 248, 250);
+        });
+        let output = ctx.run(input(), |_| {});
+        paint.raster(&ctx, &output, 80, 80);
+        assert_eq!(paint.pixels[40 * 80 + 40], [245, 248, 250, 255]);
     }
 }
