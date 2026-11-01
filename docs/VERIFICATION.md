@@ -1,6 +1,6 @@
 # Verification record
 
-Session dates: 2026-10-31 / 2026-11-01 (Europe/Minsk). Windows x64 host, Rust 1.96.1 / Cargo 1.96.1. All repository commands used `E:/work/github/bandwidth-limiter`, a local target directory and at most two Cargo jobs. No native GUI was launched. Records below are chronological; the final WinDivert section supersedes earlier backend scope, artifact and test counts.
+Session dates: 2026-10-31 / 2026-11-01 (Europe/Minsk). Windows x64 host, Rust 1.96.1 / Cargo 1.96.1. All repository commands used `E:/work/github/bandwidth-limiter`, a local target directory and at most two Cargo jobs. No native GUI was launched. Records below are chronological; the latest dated section supersedes earlier artifact and test counts.
 
 ## Completed checks
 
@@ -107,3 +107,31 @@ The CPU path remains egui software rasterization plus softbuffer Win32 GDI, with
 Verification completed: format and Clippy with no lint findings; 17 main/raster/scheduler tests passed, two pre-existing loopback socket tests remained ignored; backend control/service tests passed 4 + 3 + 4 + 10, for **38 passed and 2 ignored** across all five manifests. Both service build scripts were formatted/linted, and optimized GUI and service builds succeeded. Cargo emitted environmental incremental-cache hard-link warnings and used copying fallback. Packaged EXE/checksum files were refreshed locally; nothing was uploaded, installed or started.
 
 The repository's code-only instruction prohibits GUI launches. No native window, tray, backend service/driver, headless UI preview or updater was launched during this audit. Therefore actual idle/hidden layout/raster/presentation counts, process CPU/GPU load, input response, tray/menu/restore and mixed-monitor DPI remain **unverified at runtime**. Resource loading, dependency inspection and scheduling regressions establish their own narrower results. Previous UI screenshots remain historical, as already labeled above; physical title/taskbar/tray integration still needs a separately authorized native session.
+
+## Localization and appearance — 2026-11-01 (version 0.2.0)
+
+The six-language catalog contains 169 explicit application messages with complete Russian, French, German, Spanish and Italian translations and English fallback. It covers all four application pages, tray actions, schedules, TCP connection states, validation, update states and normal worker notices. Dynamic arguments are substituted once without interpreting braces or translating user data. Detailed Windows/updater/service diagnostics remain verbatim, with translated error context. A bootstrap error uses English when valid saved preferences are unavailable.
+
+Settings now has a compact Appearance section. Language and Light/Dark changes apply on the next event-driven frame; Save persists them alongside existing settings. Missing or unknown preferences fall back to English/Dark without resetting rules, port, usage or the startup-update choice. Applying appearance explicitly selects the egui theme, preventing an opposite Windows theme notification from switching to an unconfigured style. Software rasterization clears the retained bitmap with the active palette background; no recurring theme poll or write timer was introduced.
+
+The exact CI loopback check exposed a pre-existing Windows SOCKS handshake failure: the accepted socket retained the nonblocking listener mode and `read_exact` failed with Winsock 10035 while the client prepared CONNECT. The relay now explicitly selects blocking mode before installing its handshake timeouts. This matches the property inheritance documented by [Microsoft's accept reference](https://learn.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-accept). Both real loopback fixture tests pass after the fix. They use synthetic identity and local payloads; they do not establish real process attribution or external-traffic shaping.
+
+Completed noninteractive verification:
+
+- Root and all four backend manifests: `cargo fmt -- --check` and locked/offline Clippy with `--all-targets -- -D warnings` pass. Builds use the repository-local target, two jobs and the shared three-build concurrency limit.
+- `cargo test --locked --offline --all-targets`: **21 passed**, with the two opt-in socket tests ignored in this normal invocation. New coverage checks catalog completeness/placeholder parity, literal dynamic data, old-settings migration and every language/theme preference roundtrip. Renderer tests cover clearing after a theme change; an egui regression feeds the opposite OS theme for both saved choices and verifies the palette stays selected.
+- `cargo test --locked --offline --lib proxy::tests -- --ignored --test-threads=1`: **2 passed** (payload forwarding with TCP half-close, and refusal before connecting when identity is unknown). This is the loopback invocation used by `scripts/check.ps1 -Loopback`; it is no longer blocked or failing locally.
+- All backend formatting/Clippy checks and fixture tests pass: legacy control **3**, legacy service **4**, packet control **4**, packet service **10**. Across the five manifests and explicit loopback invocation, **44 tests executed successfully**.
+- Git whitespace, PowerShell preview-path syntax and README/release-note local file links were checked. The preview executable path now follows Cargo's version instead of the old 0.1.0 filename.
+
+Optimized locked/offline x64 MSVC builds succeeded for the GUI and both ancillary user-mode services. No built executable was started. Local packaging produced:
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `dist/BandwidthLimiter-v0.2.0.exe` | 6,691,328 | `97289aaa7b5a8c711892928c2819f8913566fd884aebdd5122998cf0dbad11b6` |
+| `dist/wfp/BandwidthLimiterService.exe` | 951,808 | `d0f8dd8bc4291eeec7a2f4c683abe01afe8cc6153b91c1a374580c51f66ae4d0` |
+| `dist/windivert/BandwidthLimiterPacketService.exe` | 1,012,224 | `5505f69c336b8cdbbec1b5ea9f830819b82c2e291d86022072cf3a7c6052ea4c` |
+
+Each directory has a matching `SHA256SUMS`; the GUI package retains the shared updater's MIT license. These are local build hashes, not a claim about a later independently built CI asset. Native resource-only inspection verifies AMD64 GUI/CUI subsystem headers, embedded 16/20/24/32/48/64/128/256-pixel icons, nonblank icon rendering on light/dark backgrounds and no OpenGL/D3D11/D3D12/DXGI imports. [GUI metadata](verification/icons-v0.2.0.json), [legacy-service metadata](verification/service-icons-v0.2.0.json) and [packet-service metadata](verification/packet-service-icons-v0.2.0.json) identify the exact files. Their inspected icon contact sheets have identical hashes and preserve the original legible two-bar artwork; this is resource evidence rather than a screenshot of an app window or the OS tray.
+
+The renderer remains egui CPU rasterization with softbuffer Win32 GDI and Wait/WaitUntil scheduling. Source inspection and the existing scheduling fixtures show consumed repaint callbacks settling and hidden frames being suppressed. **The runtime rendering/load gate is incomplete:** no native app window, tray interaction, self-capture, service/driver, live updater or real user traffic was started. Current localized/light main/settings images and visual layout review remain unavailable under the retained no-GUI instruction. Historical screenshot files and their older hashes were preserved and remain explicitly labeled in README. CPU/GPU samples and actual visible/hidden/restore frame counters were not collected; tests are narrower evidence, not a performance pass.
