@@ -106,7 +106,7 @@ pub fn render(directory: &Path) -> Result<(), Box<dyn std::error::Error>> {
             return Err("Preview exceeded its internal 20-second limit".into());
         }
         let ctx = egui::Context::default();
-        crate::design::apply(&ctx);
+        crate::design::apply(&ctx, bandwidth_limiter::model::Theme::default());
         ctx.set_pixels_per_point(scale);
         let (mut config, view) = fixture(empty);
         if page == Page::SystemTcp {

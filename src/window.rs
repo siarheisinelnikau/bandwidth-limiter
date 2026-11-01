@@ -113,7 +113,7 @@ impl Host {
         if let Some(app) = &mut self.app {
             app.poll();
             if let Some(tray) = &mut self.tray {
-                tray.sync(app.running(), app.call_mode);
+                tray.sync(app.running(), app.call_mode, app.language());
             }
             if app.can_close {
                 e.exit();
@@ -154,6 +154,7 @@ impl Host {
             let layout_start = Instant::now();
             let output = self.ctx.run(input.take_egui_input(window), |ctx| {
                 if let Some(app) = &mut self.app { app.draw(ctx); }
+                // Bootstrap recovery uses English because a valid saved Config is unavailable.
                 else { egui::CentralPanel::default().show(ctx, |ui| { ui.heading("Could not open BandwidthLimiter"); ui.label(self.startup_error.as_deref().unwrap_or("Unknown startup error")); ui.label("Existing settings have been preserved. Close another instance or inspect the data directory."); }); }
             });
             self.layout_ns += layout_start.elapsed().as_nanos();
@@ -225,7 +226,7 @@ impl ApplicationHandler<Wake> for Host {
                     });
                 }
             });
-            crate::design::apply(&self.ctx);
+            crate::design::apply(&self.ctx, bandwidth_limiter::model::Theme::default());
             match self.bootstrap.take().ok_or("Startup state missing")? {
                 Ok((guard, config, usage)) => {
                     self.instance =
@@ -246,7 +247,11 @@ impl ApplicationHandler<Wake> for Host {
             {
                 rust_auto_updator::cleanup_after_update(directory, config.install);
             }
-            self.tray = crate::tray::Tray::new(self.proxy.clone()).ok();
+            self.tray = crate::tray::Tray::new(
+                self.proxy.clone(),
+                self.app.as_ref().map(App::language).unwrap_or_default(),
+            )
+            .ok();
             if let Some(app) = &mut self.app {
                 app.tray_available = self.tray.is_some();
             }

@@ -1,4 +1,5 @@
 use crate::window::Wake;
+use bandwidth_limiter::i18n::{Language, tr};
 use tray_icon::{
     TrayIcon, TrayIconBuilder,
     menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem},
@@ -8,16 +9,19 @@ pub struct Tray {
     _icon: TrayIcon,
     proxy: MenuItem,
     call: CheckMenuItem,
-    last: Option<(bool, bool)>,
+    last: Option<(bool, bool, Language)>,
+    open: MenuItem,
+    settings: MenuItem,
+    quit: MenuItem,
 }
 impl Tray {
-    pub fn new(events: EventLoopProxy<Wake>) -> Result<Self, String> {
+    pub fn new(events: EventLoopProxy<Wake>, language: Language) -> Result<Self, String> {
         let menu = Menu::new();
-        let open = MenuItem::with_id("open", "Open BandwidthLimiter", true, None);
-        let proxy = MenuItem::with_id("proxy", "Start proxy", true, None);
-        let call = CheckMenuItem::with_id("call", "Call mode", true, false, None);
-        let settings = MenuItem::with_id("settings", "Settings", true, None);
-        let quit = MenuItem::with_id("quit", "Quit and stop limiting", true, None);
+        let open = MenuItem::with_id("open", tr(language, "Open BandwidthLimiter"), true, None);
+        let proxy = MenuItem::with_id("proxy", tr(language, "Start proxy"), true, None);
+        let call = CheckMenuItem::with_id("call", tr(language, "Call mode"), true, false, None);
+        let settings = MenuItem::with_id("settings", tr(language, "Settings"), true, None);
+        let quit = MenuItem::with_id("quit", tr(language, "Quit and stop limiting"), true, None);
         menu.append_items(&[
             &open,
             &proxy,
@@ -51,23 +55,44 @@ impl Tray {
             proxy,
             call,
             last: None,
+            open,
+            settings,
+            quit,
         })
     }
-    pub fn sync(&mut self, running: bool, call: bool) {
-        if self.last == Some((running, call)) {
+    pub fn sync(&mut self, running: bool, call: bool, language: Language) {
+        if self.last == Some((running, call, language)) {
             return;
         }
-        self.last = Some((running, call));
-        self.proxy.set_text(if running {
-            "Pause proxy"
-        } else {
-            "Start proxy"
-        });
+        self.last = Some((running, call, language));
+        self.proxy.set_text(tr(
+            language,
+            if running {
+                "Pause proxy"
+            } else {
+                "Start proxy"
+            },
+        ));
+        self.open.set_text(tr(language, "Open BandwidthLimiter"));
+        self.settings.set_text(tr(language, "Settings"));
+        self.quit.set_text(tr(language, "Quit and stop limiting"));
+        self.call.set_text(tr(language, "Call mode"));
         self.call.set_checked(call);
         let _ = self._icon.set_tooltip(Some(format!(
-            "BandwidthLimiter · proxy {}{}",
-            if running { "running" } else { "paused" },
-            if call { " · Call mode" } else { "" }
+            "BandwidthLimiter · {}{}",
+            tr(
+                language,
+                if running {
+                    "Proxy running"
+                } else {
+                    "Proxy paused"
+                }
+            ),
+            if call {
+                format!(" · {}", tr(language, "Call mode"))
+            } else {
+                String::new()
+            }
         )));
     }
 }
