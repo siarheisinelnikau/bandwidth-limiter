@@ -13,6 +13,9 @@ jobs:
       CARGO_TARGET_DIR: target
     steps:
       - uses: actions/checkout@v4
+      - name: Provision shared updater source
+        shell: pwsh
+        run: ./scripts/provision-shared-updater.ps1
       - name: Resolve locked dependencies
         run: cargo fetch --locked
       - name: Format, lint and fixture tests
