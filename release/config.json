@@ -1,0 +1,14 @@
+{
+  "repository": "siarheisinelnikau/bandwidth-limiter",
+  "product": "BandwidthLimiter",
+  "kind": "desktop",
+  "assets": [
+    {
+      "name": "BandwidthLimiter-v{version}.exe"
+    }
+  ],
+  "notices": true,
+  "checksum_aliases": [
+    "SHA256SUMS"
+  ]
+}

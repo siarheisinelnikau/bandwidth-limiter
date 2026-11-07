@@ -1,0 +1,52 @@
+name: Checked release builds
+'on':
+  workflow_call: {}
+permissions:
+  contents: read
+env:
+  CARGO_BUILD_JOBS: '2'
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      CARGO_BUILD_JOBS: 2
+      CARGO_TARGET_DIR: target
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        persist-credentials: false
+    - name: Provision shared updater source
+      shell: pwsh
+      run: ./scripts/provision-shared-updater.ps1
+    - name: Resolve locked dependencies
+      run: cargo fetch --locked
+    - name: Format, lint and fixture tests
+      shell: pwsh
+      run: ./scripts/check.ps1 -Loopback
+    - name: Build standalone executable and checksum
+      shell: pwsh
+      run: ./scripts/package.ps1 -Offline
+    - name: Render finite headless application previews
+      shell: pwsh
+      run: ./scripts/render-preview.ps1 -OutputDirectory (Join-Path (Get-Location) 'dist/preview')
+    - name: Resolve experimental service dependencies
+      run: cargo fetch --locked --manifest-path backend/service/Cargo.toml
+    - name: Check and build experimental user-mode broker only
+      shell: pwsh
+      run: |
+        ./scripts/check-wfp.ps1
+        ./scripts/build-wfp.ps1 -Offline
+    - name: Resolve WinDivert packet service dependencies
+      run: cargo fetch --locked --manifest-path backend/packet-service/Cargo.toml
+    - name: Check and build WinDivert user-mode components without loading runtime
+      shell: pwsh
+      run: |
+        ./scripts/check-windivert.ps1
+        ./scripts/build-windivert.ps1 -Offline
+    - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      with:
+        name: BandwidthLimiter-windows-x64
+        path: dist/*
+    permissions:
+      contents: read
+    timeout-minutes: 30
